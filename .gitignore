@@ -23,3 +23,6 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# personal Claude Code overrides (hooks, permissions) — not shared with the team
+.claude/settings.local.json

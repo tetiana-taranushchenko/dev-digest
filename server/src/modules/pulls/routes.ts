@@ -129,6 +129,40 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // COST per PR = sum of cost_usd for the LATEST "Run Review" batch (every
+    // agent_runs row created by one click). There's no batch id in the schema
+    // (see `multi_agent_runs`, unwired), but `runReview` creates every row in
+    // that batch synchronously before any LLM call starts, so their ran_at
+    // land within a couple seconds of each other — a wide time window from the
+    // newest run reliably separates "this batch" from any earlier one.
+    const BATCH_WINDOW_MS = 60_000;
+    const latestBatchCostByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({ prId: t.agentRuns.prId, ranAt: t.agentRuns.ranAt, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(inArray(t.agentRuns.prId, prIds))
+        .orderBy(desc(t.agentRuns.ranAt));
+      const runsByPr = new Map<string, { ranAt: Date | null; costUsd: number | null }[]>();
+      for (const r of runRows) {
+        if (!r.prId) continue;
+        const list = runsByPr.get(r.prId) ?? [];
+        list.push({ ranAt: r.ranAt, costUsd: r.costUsd });
+        runsByPr.set(r.prId, list);
+      }
+      for (const [prId, prRuns] of runsByPr) {
+        // prRuns is newest-first (query orders by ranAt desc).
+        const anchor = prRuns[0]!.ranAt?.getTime() ?? null;
+        let sum: number | null = null;
+        for (const run of prRuns) {
+          const ranAtMs = run.ranAt?.getTime() ?? null;
+          if (anchor == null || ranAtMs == null || anchor - ranAtMs > BATCH_WINDOW_MS) break;
+          if (run.costUsd != null) sum = (sum ?? 0) + run.costUsd;
+        }
+        latestBatchCostByPr.set(prId, sum);
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +187,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: latestBatchCostByPr.get(r.id) ?? null,
       };
     });
   });
