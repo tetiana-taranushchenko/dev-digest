@@ -18,3 +18,4 @@ Search `server/docs/`, `server/specs/`, and `server/INSIGHTS.md` first — the a
 - Deep-dives (adapters, DI, review context) → read [`server/docs/`](docs/README.md)
 - Specifications → read [`server/specs/`](specs/README.md)
 - Findings/insights → read [`server/INSIGHTS.md`](INSIGHTS.md)
+- Wrapping up non-trivial work in this package → run the `engineering-insights` skill; it only appends to [`server/INSIGHTS.md`](INSIGHTS.md) if something genuinely new and non-obvious came up, otherwise it does nothing

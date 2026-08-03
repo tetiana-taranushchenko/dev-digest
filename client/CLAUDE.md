@@ -18,3 +18,4 @@ Search `client/docs/`, `client/specs/`, and `client/INSIGHTS.md` first — the a
 - Deep-dives → read [`client/docs/`](docs/README.md)
 - UI/flow specifications → read [`client/specs/`](specs/README.md)
 - Findings/insights → read [`client/INSIGHTS.md`](INSIGHTS.md)
+- Wrapping up non-trivial work in this package → run the `engineering-insights` skill; it only appends to [`client/INSIGHTS.md`](INSIGHTS.md) if something genuinely new and non-obvious came up, otherwise it does nothing

@@ -19,3 +19,4 @@ Search `e2e/docs/`, `e2e/specs/`, and `e2e/INSIGHTS.md` first — the answer may
 - Deep-dives → read [`e2e/docs/`](docs/README.md)
 - The flow specifications themselves → read [`e2e/specs/`](specs/README.md)
 - Findings/insights → read [`e2e/INSIGHTS.md`](INSIGHTS.md)
+- Wrapping up non-trivial work in this package → run the `engineering-insights` skill; it only appends to [`e2e/INSIGHTS.md`](INSIGHTS.md) if something genuinely new and non-obvious came up, otherwise it does nothing
