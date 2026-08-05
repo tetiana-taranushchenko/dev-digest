@@ -1,54 +1,38 @@
 import type { FastifyInstance } from 'fastify';
-import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { RunRequest } from '@devdigest/shared';
+import { FindingActionKind, RunRequest } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
-import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { ReviewService } from './service.js';
 
 /**
- * reviews module.
- *   POST   /pulls/:id/review  {agentId} | {all:true}  → run review(s); returns runs
- *   GET    /runs/:id/events                            → SSE stream of RunEvent (replay-first)
- *   GET    /runs/:id/trace                             → the single-document RunTrace
- *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
- *   POST   /findings/:id/(accept|dismiss)              → finding actions
+ * A2 — reviews module (§12, owner A2).
+ *   POST /pulls/:id/review  {agentId} | {all:true}  → run review(s); returns runs+reviews
+ *   GET  /runs/:id/events                            → SSE stream of RunEvent (replay-first)
+ *   GET  /runs/:id/trace                             → the single-document RunTrace (basic; A5 enriches)
+ *   GET  /pulls/:id/reviews                          → persisted reviews + findings for a PR
+ *   GET  /pulls/:id/intent                           → derived PR intent (in/out of scope)
+ *   GET  /pulls/:id/smart-diff                       → Smart Diff groups + split nudge
+ *   POST /findings/:id/(accept|dismiss|learn|reply)  → finding actions (learn→memory)
  */
-const FINDING_ACTIONS = ['accept', 'dismiss'] as const;
-export default async function reviewsRoutes(appBase: FastifyInstance) {
-  const app = appBase.withTypeProvider<ZodTypeProvider>();
+export default async function reviewsRoutes(app: FastifyInstance) {
   const { container } = app;
   const service = new ReviewService(container);
 
-  // ---- Run a review (manual trigger) -------------------------------
-  // Tight per-route limit: each call can fan out to expensive LLM runs.
-  // Body stays a tolerant manual parse (both fields optional; empty body is OK).
-  app.post(
-    '/pulls/:id/review',
-    { schema: { params: IdParams }, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
-    async (req) => {
+  // ---- Run a review (manual trigger; §8.1) -------------------------------
+  app.post<{ Params: { id: string } }>('/pulls/:id/review', async (req) => {
     const { workspaceId } = await getContext(container, req);
     const body = RunRequest.parse(req.body ?? {});
     const targets = await service.resolveTargets(workspaceId, {
       ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
       ...(body.all !== undefined ? { all: body.all } : {}),
     });
-    const { runs, reviews } = await service.runReview(
-      workspaceId,
-      req.params.id,
-      targets,
-      req.log,
-    );
+    const { runs, reviews } = await service.runReview(workspaceId, req.params.id, targets);
     return { pr_id: req.params.id, runs, reviews };
   });
 
   // ---- SSE: live run events (replay buffer first, then live; ends on done) -
-  // No rate limit: SSE is one long-lived connection, not burst traffic.
-  app.get(
-    '/runs/:id/events',
-    { schema: { params: IdParams }, config: { rateLimit: false } },
-    async (req, reply) => {
+  app.get<{ Params: { id: string } }>('/runs/:id/events', async (req, reply) => {
     await getContext(container, req);
     const runId = req.params.id;
 
@@ -91,34 +75,8 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     );
   });
 
-  // ---- Active (in-flight) runs for a PR (server source of truth) ----------
-  app.get('/pulls/:id/runs/active', { schema: { params: IdParams } }, async (req) => {
-    const { workspaceId } = await getContext(container, req);
-    return service.activeRuns(workspaceId, req.params.id);
-  });
-
-  // ---- All runs for a PR (any status; the run history, incl. failures) -----
-  app.get('/pulls/:id/runs', { schema: { params: IdParams } }, async (req) => {
-    const { workspaceId } = await getContext(container, req);
-    return service.listRuns(workspaceId, req.params.id);
-  });
-
-  // ---- Delete one run from the history (+ its trace) ----------------------
-  app.delete('/runs/:id', { schema: { params: IdParams } }, async (req) => {
-    const { workspaceId } = await getContext(container, req);
-    const ok = await service.deleteRun(workspaceId, req.params.id);
-    return { ok };
-  });
-
-  // ---- Cancel an in-flight run --------------------------------------------
-  app.post('/runs/:id/cancel', { schema: { params: IdParams } }, async (req) => {
-    await getContext(container, req);
-    await service.cancelRun(req.params.id);
-    return { ok: true };
-  });
-
   // ---- Run trace (single document; A5 enriches with multi-agent/stats) ----
-  app.get('/runs/:id/trace', { schema: { params: IdParams } }, async (req) => {
+  app.get<{ Params: { id: string } }>('/runs/:id/trace', async (req) => {
     await getContext(container, req);
     const trace = await service.getRunTrace(req.params.id);
     if (!trace) throw new NotFoundError('Run trace not found');
@@ -126,25 +84,33 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
   });
 
   // ---- Reads --------------------------------------------------------------
-  app.get('/pulls/:id/reviews', { schema: { params: IdParams } }, async (req) => {
+  app.get<{ Params: { id: string } }>('/pulls/:id/reviews', async (req) => {
     const { workspaceId } = await getContext(container, req);
     return service.reviewsForPull(workspaceId, req.params.id);
   });
 
-  // ---- Delete a whole review run (one agent's pass) + its findings --------
-  app.delete('/reviews/:id', { schema: { params: IdParams } }, async (req) => {
+  app.get<{ Params: { id: string } }>('/pulls/:id/intent', async (req) => {
     const { workspaceId } = await getContext(container, req);
-    const ok = await service.deleteReview(workspaceId, req.params.id);
-    if (!ok) throw new NotFoundError('Review not found');
-    return { ok: true };
+    const intent = await service.getIntent(workspaceId, req.params.id);
+    if (!intent) throw new NotFoundError('No intent derived for this PR yet');
+    return { pr_id: req.params.id, ...intent };
   });
 
-  // ---- Finding actions (accept / dismiss) ---------------------------------
-  for (const action of FINDING_ACTIONS) {
-    app.post(`/findings/:id/${action}`, { schema: { params: IdParams } }, async (req) => {
-      const { workspaceId } = await getContext(container, req);
-      const result = await service.actOnFinding(workspaceId, req.params.id, action);
-      return result;
-    });
+  app.get<{ Params: { id: string } }>('/pulls/:id/smart-diff', async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    return service.smartDiff(workspaceId, req.params.id);
+  });
+
+  // ---- Finding actions ----------------------------------------------------
+  for (const action of FindingActionKind.options) {
+    app.post<{ Params: { id: string }; Body: { reply?: string } }>(
+      `/findings/:id/${action}`,
+      async (req) => {
+        const { workspaceId } = await getContext(container, req);
+        const reply = (req.body ?? {}).reply;
+        const result = await service.actOnFinding(workspaceId, req.params.id, action, reply);
+        return result;
+      },
+    );
   }
 }

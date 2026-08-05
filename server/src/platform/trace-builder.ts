@@ -9,7 +9,7 @@ import type {
 import { RunTrace as RunTraceSchema } from '@devdigest/shared';
 
 /**
- * A5 — shared run-trace builder. A2's single-agent reviewer and A5's
+ * A5 — shared run-trace builder (§7). A2's single-agent reviewer and A5's
  * multi-agent / built-in-detector runs all assemble the SAME single-document
  * RunTrace through this helper, so the enriched shape (full stats +
  * prompt_assembly + tool_calls + memory_pulled + specs_read + raw_output +

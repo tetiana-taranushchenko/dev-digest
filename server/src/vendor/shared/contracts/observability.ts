@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { Severity } from './findings.js';
 
 /**
- * A5 — Observability / Multi-agent contracts (L07).
+ * A5 — Observability / Multi-agent contracts (L07, §6/§7/§12).
  *
  * These are NEW contracts (A5 owns this file; the barrel re-exports it). They
  * sit alongside A2's `review-api.ts`:
@@ -98,7 +98,7 @@ export const AgentStats = z.object({
   agent_name: z.string(),
   runs: z.number().int(),
   findings_total: z.number().int(),
-  /** accept-rate is the headline quality signal. 0..1 over acted findings. */
+  /** accept-rate is the headline quality signal (§7). 0..1 over acted findings. */
   accepted: z.number().int(),
   dismissed: z.number().int(),
   pending: z.number().int(),

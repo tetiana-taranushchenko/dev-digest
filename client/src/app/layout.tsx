@@ -20,11 +20,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* set theme before paint to avoid FOUC */}
         <script dangerouslySetInnerHTML={{ __html: themeNoFlashScript }} />
       </head>
-      {/* suppressHydrationWarning: browser extensions (Grammarly, translators, …)
-          inject attributes like data-gr-ext-installed onto <body> before React
-          hydrates. This suppresses ONLY this element's own attribute mismatch
-          (one level deep) — real mismatches in descendants are still reported. */}
-      <body suppressHydrationWarning>
+      <body>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <Suspense fallback={null}>
             <Providers>{children}</Providers>

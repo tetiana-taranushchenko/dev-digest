@@ -1,7 +1,7 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import type { Provider } from '@devdigest/shared';
 import { DEFAULT_AGENT_DESCRIPTION, INITIAL_AGENT_VERSION } from './constants.js';
 import { isConfigChange } from './helpers.js';
 
@@ -11,8 +11,7 @@ import { isConfigChange } from './helpers.js';
  * agent side: link/reorder/list for an agent). Workspace-scoped throughout.
  */
 
-import type { AgentRow, AgentVersionRow } from '../../db/rows.js';
-export type { AgentRow, AgentVersionRow };
+export type AgentRow = typeof t.agents.$inferSelect;
 
 export interface InsertAgent {
   workspaceId: string;
@@ -22,9 +21,6 @@ export interface InsertAgent {
   model: string;
   systemPrompt: string;
   outputSchema?: unknown;
-  strategy?: ReviewStrategy;
-  ciFailOn?: CiFailOn;
-  repoIntel?: boolean;
   enabled?: boolean;
   createdBy?: string | null;
 }
@@ -36,9 +32,6 @@ export interface UpdateAgent {
   model?: string;
   systemPrompt?: string;
   outputSchema?: unknown;
-  strategy?: ReviewStrategy;
-  ciFailOn?: CiFailOn;
-  repoIntel?: boolean;
   enabled?: boolean;
 }
 
@@ -70,17 +63,6 @@ export class AgentsRepository {
     return row;
   }
 
-  /** Delete an agent (scoped to workspace). Versions/skill-links cascade;
-   *  agent_runs keep their history with agent_id set null. Returns false if
-   *  no such agent existed in the workspace. */
-  async deleteById(workspaceId: string, id: string): Promise<boolean> {
-    const rows = await this.db
-      .delete(t.agents)
-      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
-      .returning({ id: t.agents.id });
-    return rows.length > 0;
-  }
-
   /** Insert an agent AND record version 1 in agent_versions (immutable snapshot). */
   async insert(values: InsertAgent): Promise<AgentRow> {
     const [row] = await this.db
@@ -93,9 +75,6 @@ export class AgentsRepository {
         model: values.model,
         systemPrompt: values.systemPrompt,
         outputSchema: (values.outputSchema as object | undefined) ?? null,
-        ...(values.strategy !== undefined ? { strategy: values.strategy } : {}),
-        ...(values.ciFailOn !== undefined ? { ciFailOn: values.ciFailOn } : {}),
-        ...(values.repoIntel !== undefined ? { repoIntel: values.repoIntel } : {}),
         enabled: values.enabled ?? true,
         version: INITIAL_AGENT_VERSION,
         createdBy: values.createdBy ?? null,
@@ -107,7 +86,7 @@ export class AgentsRepository {
 
   /**
    * Update an agent. Any config change bumps the version and snapshots the new
-   * config into agent_versions (reproducibility for eval).
+   * config into agent_versions (reproducibility for eval — §4).
    */
   async update(
     workspaceId: string,
@@ -132,9 +111,6 @@ export class AgentsRepository {
         ...(patch.outputSchema !== undefined
           ? { outputSchema: patch.outputSchema as object }
           : {}),
-        ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
-        ...(patch.ciFailOn !== undefined ? { ciFailOn: patch.ciFailOn } : {}),
-        ...(patch.repoIntel !== undefined ? { repoIntel: patch.repoIntel } : {}),
         ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
         ...(configChanged ? { version: nextVersion } : {}),
       })
@@ -157,33 +133,10 @@ export class AgentsRepository {
           model: row.model,
           system_prompt: row.systemPrompt,
           output_schema: row.outputSchema,
-          strategy: row.strategy,
-          ci_fail_on: row.ciFailOn,
-          repo_intel: row.repoIntel,
           skills,
         },
       })
       .onConflictDoNothing();
-  }
-
-  // ---- agent_versions (immutable config snapshots) ------------------------
-
-  /** All config snapshots for an agent, newest version first. */
-  async listVersions(agentId: string): Promise<AgentVersionRow[]> {
-    return this.db
-      .select()
-      .from(t.agentVersions)
-      .where(eq(t.agentVersions.agentId, agentId))
-      .orderBy(desc(t.agentVersions.version));
-  }
-
-  /** A single config snapshot, or undefined if that version was never recorded. */
-  async getVersion(agentId: string, version: number): Promise<AgentVersionRow | undefined> {
-    const [row] = await this.db
-      .select()
-      .from(t.agentVersions)
-      .where(and(eq(t.agentVersions.agentId, agentId), eq(t.agentVersions.version, version)));
-    return row;
   }
 
   // ---- agent_skills link table (A2 owns the agent side) -------------------

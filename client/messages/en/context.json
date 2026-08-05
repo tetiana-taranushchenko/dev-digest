@@ -3,8 +3,6 @@
   "chunks": "{count} chunks",
   "reindex": "Re-index",
   "indexing": "Indexing…",
-  "resync": "Resync",
-  "resyncing": "Resyncing…",
   "indexStatus": "Index status: {status}",
   "loadError": "Couldn’t load specs",
   "kb": "{kb}kb",

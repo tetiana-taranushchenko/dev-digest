@@ -1,7 +1,7 @@
 import type { Finding, UnifiedDiff } from '@devdigest/shared';
 
 /**
- * Citation grounding — the mandatory mechanical gate for diff-findings.
+ * §11 Citation grounding — the mandatory mechanical gate for diff-findings.
  *
  * A diff-finding is kept ONLY if its [start_line, end_line] range intersects a
  * real hunk in the unified diff for the same file. Findings that fail are

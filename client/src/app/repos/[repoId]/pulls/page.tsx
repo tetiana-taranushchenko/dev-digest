@@ -6,23 +6,115 @@ import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
+  Icon,
+  Avatar,
+  Badge,
+  Chip,
+  Button,
   Skeleton,
   EmptyState,
   ErrorState,
   AutoTriggerStatus,
 } from "@devdigest/ui";
-import { AppShell } from "@/components/app-shell";
-import { RepoNotFound } from "@/components/repo-not-found";
-import { usePulls, useRefreshRepo } from "@/lib/hooks";
-import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
-import { ApiError } from "@/lib/api";
-import { COLUMN_KEYS, SKELETON_ROWS } from "./constants";
+import { AppShell } from "../../../../components/app-shell";
+import { usePulls, useRefreshRepo } from "../../../../lib/hooks";
+import { useActiveRepo } from "../../../../lib/repo-context";
+import { ApiError } from "../../../../lib/api";
+import type { PrMeta } from "../../../../lib/types";
+import {
+  COLUMN_KEYS,
+  SIZE_COLOR,
+  SKELETON_ROWS,
+  STATUS_FILTERS,
+  STATUS_META,
+} from "./constants";
+import { sizeOf } from "./helpers";
 import { s } from "./styles";
-import { PRRow } from "./_components/PRRow";
-import { FilterBar } from "./_components/FilterBar";
 
-/** Open PRs carry a derived review status; everything else is merged/closed. */
-const OPEN_STATUSES = new Set(["needs_review", "reviewed", "stale"]);
+function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
+  const t = useTranslations("prReview");
+  const router = useRouter();
+  const [h, setH] = React.useState(false);
+  const st = STATUS_META[pr.status] ?? STATUS_META.open!;
+  const { size, lines } = sizeOf(pr);
+  return (
+    <div
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      onClick={() => router.push(`/repos/${repoId}/pulls/${pr.number}`)}
+      style={s.row(h)}
+    >
+      <div style={s.rowTitleCell}>
+        <Icon.GitPullRequest size={15} style={s.rowIcon(st.c)} />
+        <div style={s.rowTitleWrap}>
+          <div style={s.rowTitle(h)}>{pr.title}</div>
+          <span className="mono" style={s.rowNumber}>
+            #{pr.number}
+          </span>
+        </div>
+      </div>
+      <div style={s.authorCell}>
+        <Avatar name={pr.author} size={18} />
+        {pr.author}
+      </div>
+      <div>
+        <Badge
+          color={SIZE_COLOR[size]}
+          bg="transparent"
+          style={s.sizeBadgeBorder(SIZE_COLOR[size]!)}
+        >
+          {size} · {lines}
+        </Badge>
+      </div>
+      <div className="mono tnum" style={s.diffCell}>
+        <span style={s.addCount}>+{pr.additions}</span>{" "}
+        <span style={s.delCount}>−{pr.deletions}</span>
+      </div>
+      <div>
+        <Badge dot color={st.c} bg="transparent">
+          {t(`list.status.${st.labelKey}`)}
+        </Badge>
+      </div>
+      <div style={s.filesCell}>{t("list.filesCount", { count: pr.files_count })}</div>
+    </div>
+  );
+}
+
+function FilterBar({
+  active,
+  onActive,
+  onRefresh,
+  refreshing,
+}: {
+  active: string;
+  onActive: (k: string) => void;
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
+  const t = useTranslations("prReview");
+  return (
+    <div style={s.filterBar}>
+      <div style={s.filterChips}>
+        {STATUS_FILTERS.map(({ key, labelKey }) => (
+          <Chip key={key} active={active === key} onClick={() => onActive(key)}>
+            {t(`list.filter.${labelKey}`)}
+          </Chip>
+        ))}
+      </div>
+      <div style={s.filterActions}>
+        <Button
+          kind="secondary"
+          size="sm"
+          icon="RefreshCw"
+          onClick={onRefresh}
+          disabled={refreshing}
+        >
+          {refreshing ? t("list.refreshing") : t("list.refresh")}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function PullsPage() {
   const t = useTranslations("prReview");
@@ -31,43 +123,20 @@ export default function PullsPage() {
   const search = useSearchParams();
   const router = useRouter();
   const { activeRepo } = useActiveRepo();
-  const repoNotFound = useRepoNotFound(repoId);
   const { data: pulls, isLoading, isError, error, refetch } = usePulls(repoId);
   const refresh = useRefreshRepo();
 
-  // Default to "needs review" — the most actionable filter on open.
-  const status = search.get("status") ?? "needs_review";
+  const status = search.get("status") ?? "all";
   const setStatus = (k: string) => {
     const sp = new URLSearchParams(search.toString());
-    sp.set("status", k); // always explicit so "all" sticks over the needs_review default
+    if (k === "all") sp.delete("status");
+    else sp.set("status", k);
     router.replace(`/repos/${repoId}/pulls?${sp.toString()}`);
   };
 
-  const [query, setQuery] = React.useState("");
-  const [sort, setSort] = React.useState("newest");
-
-  const q = query.trim().toLowerCase();
-  const filtered = (pulls ?? [])
-    .filter((p) => status === "all" || p.status === status)
-    .filter((p) => !q || p.title.toLowerCase().includes(q) || String(p.number).includes(q))
-    .slice()
-    .sort((a, b) => {
-      const ta = Date.parse(a.updated_at ?? "") || 0;
-      const tb = Date.parse(b.updated_at ?? "") || 0;
-      return sort === "oldest" ? ta - tb : tb - ta;
-    });
+  const filtered = (pulls ?? []).filter((p) => status === "all" || p.status === status);
   const repoName = activeRepo?.full_name ?? repoId;
-  const openCount = (pulls ?? []).filter((p) => OPEN_STATUSES.has(p.status)).length;
-  const needsReviewCount = (pulls ?? []).filter((p) => p.status === "needs_review").length;
-
-  // Stale/unknown :repoId → friendly empty state instead of a 404 error.
-  if (repoNotFound) {
-    return (
-      <AppShell crumb={[{ label: repoName, mono: true }, { label: t("list.breadcrumb") }]}>
-        <RepoNotFound />
-      </AppShell>
-    );
-  }
+  const needsReview = (pulls ?? []).filter((p) => p.status === "needs_review").length;
 
   return (
     <AppShell crumb={[{ label: repoName, mono: true }, { label: t("list.breadcrumb") }]}>
@@ -75,9 +144,7 @@ export default function PullsPage() {
         <div>
           <h1 style={s.pageTitle}>{t("list.title")}</h1>
           <p style={s.pageSubtitle}>
-            {pulls
-              ? t("list.summary", { open: openCount, needsReview: needsReviewCount })
-              : t("list.loading")}
+            {pulls ? t("list.summary", { open: pulls.length, needsReview }) : t("list.loading")}
           </p>
         </div>
         <div style={s.headerActions}>
@@ -89,10 +156,6 @@ export default function PullsPage() {
         <FilterBar
           active={status}
           onActive={setStatus}
-          query={query}
-          onQuery={setQuery}
-          sort={sort}
-          onSort={setSort}
           onRefresh={() => refresh.mutate(repoId)}
           refreshing={refresh.isPending}
         />
@@ -120,11 +183,7 @@ export default function PullsPage() {
           <EmptyState
             icon="GitPullRequest"
             title={t("list.emptyTitle")}
-            body={
-              status === "all"
-                ? t("list.emptyAllBody")
-                : t("list.emptyStatusBody", { status })
-            }
+            body={status === "all" ? t("list.emptyAllBody") : t("list.emptyStatusBody", { status })}
           />
         ) : (
           filtered.map((pr) => <PRRow key={pr.number} pr={pr} repoId={repoId} />)

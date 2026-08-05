@@ -2,18 +2,14 @@ import type { PrMeta } from "../../../../lib/types";
 
 /** Constants for the PR list page (/repos/:repoId/pulls). */
 
-/**
- * Review status → colour token + i18n label key (under `list.status`). Open PRs
- * carry a derived review status (needs_review / reviewed / stale); merged/closed
- * keep their GitHub merge state.
- */
+/** Status → colour token + i18n label key (under the `list.status` namespace). */
 export const STATUS_META: Record<string, { c: string; labelKey: string }> = {
-  needs_review: { c: "var(--warn)", labelKey: "needs_review" },
+  needs_review: { c: "var(--warn)", labelKey: "needsReview" },
   reviewed: { c: "var(--ok)", labelKey: "reviewed" },
   stale: { c: "var(--stale)", labelKey: "stale" },
   open: { c: "var(--warn)", labelKey: "open" },
-  merged: { c: "var(--ok)", labelKey: "merged" },
   closed: { c: "var(--stale)", labelKey: "closed" },
+  merged: { c: "var(--ok)", labelKey: "merged" },
 };
 
 /** Size bucket → colour token. */
@@ -24,7 +20,7 @@ export const SIZE_COLOR: Record<string, string> = {
 };
 
 /** Grid template for both the header row and PR rows. */
-export const GRID = "1fr 132px 92px 60px 118px 78px";
+export const GRID = "1fr 130px 92px 64px 110px 72px";
 
 /** Line-count thresholds for the S/M/L size bucket. */
 export const SIZE_SMALL_MAX = 100;
@@ -33,7 +29,7 @@ export const SIZE_MEDIUM_MAX = 400;
 /** Filter chips: status key + i18n label key (under `list.filter`). */
 export const STATUS_FILTERS: { key: string; labelKey: string }[] = [
   { key: "all", labelKey: "all" },
-  { key: "needs_review", labelKey: "needs_review" },
+  { key: "needs_review", labelKey: "needsReview" },
   { key: "reviewed", labelKey: "reviewed" },
   { key: "stale", labelKey: "stale" },
 ];
@@ -43,9 +39,9 @@ export const COLUMN_KEYS: string[] = [
   "pullRequest",
   "author",
   "size",
-  "score",
+  "diff",
   "status",
-  "updated",
+  "files",
 ];
 
 /** Number of skeleton rows shown while loading. */

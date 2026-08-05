@@ -15,8 +15,6 @@ export const reviews = pgTable('reviews', {
     .notNull()
     .references(() => pullRequests.id, { onDelete: 'cascade' }),
   agentId: uuid('agent_id'),
-  /** The agent_run that produced this review (links the timeline run ↔ review). */
-  runId: uuid('run_id'),
   kind: text('kind', { enum: ['summary', 'review'] }).notNull(),
   verdict: text('verdict'),
   summary: text('summary'),

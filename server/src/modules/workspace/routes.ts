@@ -4,7 +4,7 @@ import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 
 /**
- * F1 — workspace manager: where clones live + a summary of cloned repos.
+ * F1 — workspace manager (§7.7): where clones live + a summary of cloned repos.
  *   GET /workspace        → workspace info + cloneDir + cloned repos summary
  *
  * Cleanup/re-pull of individual repos is handled by the repos module

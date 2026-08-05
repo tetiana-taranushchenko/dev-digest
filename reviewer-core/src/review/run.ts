@@ -9,7 +9,7 @@ import type {
 import { Review as ReviewSchema } from '@devdigest/shared';
 import { assemblePrompt } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
-import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
+import { reduceReviews, sliceDiff } from './reduce.js';
 
 /**
  * reviewPullRequest — the review engine entry point.
@@ -58,19 +58,6 @@ export interface ReviewInput {
   memory?: string[];
   /** Project-context spec chunks (untrusted; delimiter-wrapped downstream). */
   specs?: string[];
-  /**
-   * Optional callers-of-changed-symbols digest (T1.3). Untrusted; rendered
-   * before the diff section. Empty/undefined → section omitted.
-   */
-  callers?: string;
-  /**
-   * Optional repo skeleton / map (T3). Untrusted; rendered before the project
-   * context section. Empty/undefined → section omitted.
-   */
-  repoMap?: string;
-  /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
-      the prompt). Empty/undefined → section omitted. */
-  prDescription?: string;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -132,9 +119,6 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     skills: input.skills,
     memory: input.memory,
     specs: input.specs,
-    callers: input.callers,
-    repoMap: input.repoMap,
-    prDescription: input.prDescription,
     task: input.task,
   };
 
@@ -201,11 +185,8 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   }
   emit('result', `Citation grounding: ${grounding}`);
 
-  // Score is derived from the findings that SURVIVED grounding (not the model's
-  // self-reported number, and not the pre-grounding set) so the score, the
-  // findings list, and the deterministic event always agree.
   return {
-    review: { ...merged, findings: ground.kept, score: scoreFromFindings(ground.kept) },
+    review: { ...merged, findings: ground.kept },
     grounding,
     dropped: ground.dropped,
     mode,

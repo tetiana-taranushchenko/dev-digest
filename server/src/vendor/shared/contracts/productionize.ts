@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { Severity } from './findings.js';
 
 /**
- * A6 — Productionize contracts (L08).
+ * A6 — Productionize contracts (L08, §6/§7/§12).
  *
  * NEW file (A6 owns it; the barrel re-exports it). Covers:
  *   - PluginBundle / InstalledPlugin   POST /plugins/export, /plugins/import, GET /plugins
@@ -33,7 +33,7 @@ export type PluginSkill = z.infer<typeof PluginSkill>;
 export const PluginAgent = z.object({
   name: z.string(),
   description: z.string(),
-  provider: z.enum(['openai', 'anthropic', 'openrouter']),
+  provider: z.enum(['openai', 'anthropic']),
   model: z.string(),
   system_prompt: z.string(),
   output_schema: z.unknown().nullish(),

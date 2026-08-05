@@ -13,14 +13,7 @@ import type {
 import { parseUnifiedDiff } from './diff-parser.js';
 
 /**
- * Depth fetched by `sync()`. Deeper than the shallow clone (CLONE_DEPTH=1) so the
- * previously-indexed sha is usually reachable, keeping the resync diff incremental;
- * when it isn't, the indexer falls back to a full reindex.
- */
-const RESYNC_FETCH_DEPTH = 50;
-
-/**
- * GitClient over simple-git. Repos clone to
+ * GitClient over simple-git (§5, §9). Repos clone to
  * `<cloneDir>/<owner>/<repo>`. We NEVER execute repo code — only git ops.
  */
 export class SimpleGitClient implements GitClient {
@@ -74,19 +67,6 @@ export class SimpleGitClient implements GitClient {
     await this.git(repo).fetch(['origin', `pull/${n}/head:pr-${n}`]);
   }
 
-  async sync(repo: RepoRef, branch: string): Promise<{ head: string }> {
-    // Resync the read-only mirror to upstream. A bare `fetch` only moves
-    // `origin/<branch>`, so we `reset --hard` to advance local HEAD + worktree —
-    // safe here because we never commit to or run code from the clone.
-    // Fetch a bounded depth (> the shallow CLONE_DEPTH) so the prior indexed sha
-    // is usually reachable for an incremental diff; the indexer falls back to a
-    // full reindex when it isn't.
-    const g = this.git(repo);
-    await g.fetch(['origin', branch, '--depth', String(RESYNC_FETCH_DEPTH)]);
-    await g.reset(['--hard', `origin/${branch}`]);
-    return { head: (await g.revparse(['HEAD'])).trim() };
-  }
-
   async currentHead(repo: RepoRef): Promise<string> {
     return (await this.git(repo).revparse(['HEAD'])).trim();
   }
@@ -94,21 +74,6 @@ export class SimpleGitClient implements GitClient {
   async diff(repo: RepoRef, base: string, head: string): Promise<UnifiedDiff> {
     const raw = await this.git(repo).diff([`${base}...${head}`]);
     return parseUnifiedDiff(raw);
-  }
-
-  /**
-   * `git diff --name-only base..head` — used by the incremental indexer to
-   * pick the file set that changed since `last_indexed_sha`. Two-dot is
-   * intentional (commits reachable from `head` but not `base`), unlike the
-   * three-dot symmetric form `diff()` uses for review diffs.
-   */
-  async diffNameOnly(repo: RepoRef, base: string, head: string): Promise<string[]> {
-    if (base === head) return [];
-    const raw = await this.git(repo).raw(['diff', '--name-only', `${base}..${head}`]);
-    return raw
-      .split('\n')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
   }
 
   async blame(repo: RepoRef, path: string): Promise<BlameLine[]> {

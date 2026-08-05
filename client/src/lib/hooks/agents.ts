@@ -1,9 +1,9 @@
-/* hooks/agents.ts — React Query hooks for the A2 Agents tab + Agent Editor. */
+/* hooks/agents.ts — React Query hooks for the A2 Agents tab + Agent Editor (§12). */
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Agent, ModelInfo, Provider, ReviewStrategy } from "@devdigest/shared";
+import type { Agent, AgentSkillLink, ModelInfo, Provider } from "@devdigest/shared";
 
 export function useAgents() {
   return useQuery({
@@ -27,7 +27,6 @@ export interface CreateAgentInput {
   model: string;
   system_prompt: string;
   output_schema?: unknown;
-  strategy?: ReviewStrategy;
   enabled?: boolean;
 }
 
@@ -44,16 +43,7 @@ export interface UpdateAgentInput {
   patch: Partial<
     Pick<
       Agent,
-      | "name"
-      | "description"
-      | "provider"
-      | "model"
-      | "system_prompt"
-      | "output_schema"
-      | "strategy"
-      | "ci_fail_on"
-      | "repo_intel"
-      | "enabled"
+      "name" | "description" | "provider" | "model" | "system_prompt" | "output_schema" | "enabled"
     >
   >;
 }
@@ -69,14 +59,21 @@ export function useUpdateAgent() {
   });
 }
 
-export function useDeleteAgent() {
+export function useAgentSkills(agentId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["agent", agentId, "skills"],
+    queryFn: () => api.get<AgentSkillLink[]>(`/agents/${agentId}/skills`),
+    enabled: !!agentId,
+  });
+}
+
+export function useSetAgentSkills() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.del<{ ok: boolean }>(`/agents/${id}`),
-    onSuccess: (_d, id) => {
-      qc.invalidateQueries({ queryKey: ["agents"] });
-      qc.removeQueries({ queryKey: ["agent", id] });
-    },
+    mutationFn: ({ agentId, skillIds }: { agentId: string; skillIds: string[] }) =>
+      api.post<AgentSkillLink[]>(`/agents/${agentId}/skills`, { skill_ids: skillIds }),
+    onSuccess: (_d, { agentId }) =>
+      qc.invalidateQueries({ queryKey: ["agent", agentId, "skills"] }),
   });
 }
 

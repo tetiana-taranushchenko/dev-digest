@@ -62,7 +62,6 @@ export class OpenRouterProvider implements LLMProvider {
     const messages = [...req.messages];
     let tokensIn = 0;
     let tokensOut = 0;
-    let costFromApi: number | null = null;
     let lastRaw = '';
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
@@ -78,9 +77,6 @@ export class OpenRouterProvider implements LLMProvider {
         // OpenRouter session grouping — extra body field (spread is exempt from
         // excess-property checks). Only sent when talking to OpenRouter.
         ...(this.id === 'openrouter' && req.sessionId ? { session_id: req.sessionId } : {}),
-        // OpenRouter usage accounting — ask it to return the REAL generation
-        // cost (USD) in `usage.cost`, instead of estimating from a price book.
-        ...(this.id === 'openrouter' ? { usage: { include: true } } : {}),
       });
 
       // OpenRouter can return HTTP 200 with no `choices` (an upstream provider
@@ -93,9 +89,6 @@ export class OpenRouterProvider implements LLMProvider {
       lastRaw = choice.message?.content ?? '';
       tokensIn += res.usage?.prompt_tokens ?? 0;
       tokensOut += res.usage?.completion_tokens ?? 0;
-      // `usage.cost` is an OpenRouter extension (USD), absent from the OpenAI SDK type.
-      const apiCost = (res.usage as { cost?: number } | null | undefined)?.cost;
-      if (typeof apiCost === 'number') costFromApi = (costFromApi ?? 0) + apiCost;
 
       const parsed = parseWithRepair(req.schema, lastRaw);
       if (parsed.ok) {
@@ -104,7 +97,7 @@ export class OpenRouterProvider implements LLMProvider {
           model: req.model,
           tokensIn,
           tokensOut,
-          costUsd: costFromApi ?? this.estimateCost?.(req.model, tokensIn, tokensOut) ?? null,
+          costUsd: this.estimateCost?.(req.model, tokensIn, tokensOut) ?? null,
           raw: lastRaw,
           attempts: attempt,
         };

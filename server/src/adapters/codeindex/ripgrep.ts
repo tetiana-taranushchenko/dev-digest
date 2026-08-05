@@ -12,7 +12,7 @@ import type {
 import { extractSymbols, extractReferences } from './extract.js';
 
 /**
- * CodeIndex — ripgrep search + an ENHANCED regex symbol/reference
+ * CodeIndex (§5) — ripgrep search + an ENHANCED regex symbol/reference
  * extractor (A3, L04). The symbol/reference logic lives in `./extract.ts`
  * (unit-tested in isolation); see that file's header for why we strengthened
  * the regex extractor rather than wiring `web-tree-sitter` under the

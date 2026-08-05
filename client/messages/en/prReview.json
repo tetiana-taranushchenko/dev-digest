@@ -35,20 +35,10 @@
     "runAll": "Run all enabled agents",
     "configureAgents": "Configure agents…",
     "running": "Running…",
-    "runReview": "Run Review",
-    "mergedWarning": "Already merged — review is informational",
-    "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code."
+    "runReview": "Run Review"
   },
   "runStatus": {
-    "elapsed": "Running · {count} agent(s)",
-    "approved": "approved",
-    "reviewed": "reviewed",
-    "rejected": "rejected",
-    "error": "error",
-    "cancelled": "cancelled",
-    "running": "running",
-    "findings": "{count} finding(s)",
-    "blockers": " · {count} blockers"
+    "elapsed": "Running · {count} agent(s)"
   },
   "smartDiff": {
     "coreLabel": "Core",
@@ -66,33 +56,28 @@
     "summary": "{open} open · {needsReview} need review",
     "loading": "Loading pull requests…",
     "status": {
+      "needsReview": "Needs review",
+      "reviewed": "Reviewed",
+      "stale": "Stale",
       "open": "Open",
       "closed": "Closed",
-      "merged": "Merged",
-      "needs_review": "Needs review",
-      "reviewed": "Reviewed",
-      "stale": "Stale"
+      "merged": "Merged"
     },
     "filter": {
       "all": "All",
-      "needs_review": "Needs review",
+      "needsReview": "Needs review",
       "reviewed": "Reviewed",
       "stale": "Stale"
     },
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
-    "filterPlaceholder": "Filter pull requests…",
-    "sort": {
-      "newest": "Sort: Newest",
-      "oldest": "Sort: Oldest"
-    },
     "columns": {
       "pullRequest": "Pull request",
       "author": "Author",
       "size": "Size",
-      "score": "Score",
+      "diff": "Diff",
       "status": "Status",
-      "updated": "Updated"
+      "files": "Files"
     },
     "filesCount": "{count} files",
     "errorTitle": "Couldn’t load pull requests",
@@ -100,10 +85,5 @@
     "emptyTitle": "No pull requests",
     "emptyAllBody": "No open PRs found for this repo yet. Refresh to sync from GitHub.",
     "emptyStatusBody": "No PRs with status “{status}”."
-  },
-  "timeline": {
-    "goToReview": "Jump to this run’s findings below",
-    "openTrace": "Open run trace & logs",
-    "deleteRun": "Delete run"
   }
 }

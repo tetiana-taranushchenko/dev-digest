@@ -1,4 +1,4 @@
-/* hooks/trace.ts — A5 Run Trace. GET /runs/:id/trace returns the ENTIRE
+/* hooks/trace.ts — A5 Run Trace (§12). GET /runs/:id/trace returns the ENTIRE
    trace of one run as a single document (config + stats + prompt_assembly +
    tool_calls[] + raw_output + memory_pulled[] + full log). Registered by A2;
    A5 enriches the document it returns. Live events stream via useRunEvents

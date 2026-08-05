@@ -1,23 +1,20 @@
 import type { FastifyInstance } from 'fastify';
-import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, eq } from 'drizzle-orm';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
-import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 
 /**
- * F1 — polling module. MANUAL refresh that ONLY syncs the PR list
+ * F1 — polling module (§8.1). MANUAL refresh that ONLY syncs the PR list
  * (new/updated PRs appear, head_sha updates). It does NOT trigger any review —
  * review is manual (user presses Run Review, owned by A2).
  *
  *   POST /repos/:id/poll  → sync PR list from GitHub, bump last_polled_at
  */
-export default async function pollingRoutes(appBase: FastifyInstance) {
-  const app = appBase.withTypeProvider<ZodTypeProvider>();
+export default async function pollingRoutes(app: FastifyInstance) {
   const { container } = app;
 
-  app.post('/repos/:id/poll', { schema: { params: IdParams } }, async (req) => {
+  app.post<{ Params: { id: string } }>('/repos/:id/poll', async (req) => {
     const { workspaceId } = await getContext(container, req);
     const [repo] = await container.db
       .select()
@@ -62,7 +59,7 @@ export default async function pollingRoutes(appBase: FastifyInstance) {
       .set({ lastPolledAt: new Date() })
       .where(eq(t.repos.id, repo.id));
 
-    // NOTE: no review is triggered here — manual trigger only.
+    // NOTE: no review is triggered here — manual trigger only (§8.1).
     return { synced, reviewTriggered: false };
   });
 }

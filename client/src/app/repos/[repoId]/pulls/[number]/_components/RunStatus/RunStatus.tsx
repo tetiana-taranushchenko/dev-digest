@@ -1,5 +1,5 @@
 /* RunStatus — live SSE status for in-flight review runs. Subscribes to the
-   run event streams and renders the shared LiveLogStream. */
+   run event streams and renders the shared LiveLogStream (§7/§11). */
 "use client";
 
 import React from "react";

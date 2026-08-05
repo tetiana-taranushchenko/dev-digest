@@ -45,7 +45,7 @@
     "nameHint": "Optional — derived from the first heading if blank.",
     "namePlaceholder": "pr-quality-rubric",
     "bodyLabel": "Skill body (Markdown)",
-    "bodyHint": "Pasted content is wrapped as untrusted data — never executed as instructions.",
+    "bodyHint": "Pasted content is wrapped as untrusted data — never executed as instructions (§11).",
     "bodyPlaceholder": "# Rule\nDescribe the rule…",
     "importing": "Importing…",
     "import": "Import skill",
@@ -73,7 +73,7 @@
   },
   "listItem": {
     "needsVetting": "needs vetting",
-    "vettingTitle": "Untrusted source — vet before enabling",
+    "vettingTitle": "Untrusted source — vet before enabling (§11)",
     "type": {
       "rubric": "rubric",
       "convention": "convention",
@@ -93,7 +93,7 @@
     "disabled": "Disabled",
     "save": "Save",
     "edit": "Edit",
-    "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
+    "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent (§11).",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"
