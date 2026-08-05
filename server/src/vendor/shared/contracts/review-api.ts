@@ -3,7 +3,7 @@ import { Finding, Verdict } from './findings.js';
 import { Intent, SmartDiff } from './brief.js';
 
 /**
- * A2 — Review-Core API surface contracts. These extend the core
+ * A2 — Review-Core API surface contracts (§7, §12). These extend the core
  * Review/Finding/Intent/SmartDiff contracts with the persisted/transport shapes
  * the reviewer endpoints return. A2 owns this file; the barrel re-exports it.
  *
@@ -24,7 +24,6 @@ export const ReviewRecord = z.object({
   id: z.string(),
   pr_id: z.string(),
   agent_id: z.string().nullable(),
-  run_id: z.string().nullable(),
   agent_name: z.string().nullish(),
   kind: z.enum(['summary', 'review']),
   verdict: Verdict.nullable(),
@@ -56,10 +55,10 @@ export const ReviewRunResponse = z.object({
 });
 export type ReviewRunResponse = z.infer<typeof ReviewRunResponse>;
 
-/** Intent persisted for a PR (the Intent plus the pr_id it scopes). */
+/** Intent persisted for a PR (the §6 Intent plus the pr_id it scopes). */
 export const PrIntentRecord = Intent.extend({ pr_id: z.string() });
 export type PrIntentRecord = z.infer<typeof PrIntentRecord>;
 
-/** Smart-diff response for a PR (the SmartDiff). */
+/** Smart-diff response for a PR (the §6 SmartDiff). */
 export const SmartDiffResponse = SmartDiff;
 export type SmartDiffResponse = z.infer<typeof SmartDiffResponse>;

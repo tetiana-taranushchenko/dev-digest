@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { zodResponseFormat } from 'openai/helpers/zod';
 
 /**
- * structured-output helpers shared by both LLM providers.
+ * §6 structured-output helpers shared by both LLM providers.
  *
  * - `toJsonSchema` converts a Zod schema to a JSON Schema (draft-07, strict
  *   object) by reusing OpenAI's bundled converter — used for OpenAI's

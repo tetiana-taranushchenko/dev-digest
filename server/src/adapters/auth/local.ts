@@ -5,7 +5,7 @@ import * as t from '../../db/schema.js';
 import { DEFAULT_WORKSPACE_NAME, SYSTEM_USER_EMAIL } from '../../db/seed.js';
 
 /**
- * LocalNoAuthProvider — MVP no-login mode. Always returns the single
+ * LocalNoAuthProvider (§5, §11) — MVP no-login mode. Always returns the single
  * seeded system user + default workspace. Resolves them from the DB (lazily
  * cached) so every request scopes to the same workspace_id.
  *

@@ -1,7 +1,7 @@
 /**
  * Domain error taxonomy + structured API error envelope. The UX taxonomy
  * (toast/inline/full-screen) is the frontend's concern; the API returns a
- * stable structured body (ApiErrorBody): { error: { code, message, details } }.
+ * stable structured body (§12 ApiErrorBody): { error: { code, message, details } }.
  */
 
 export class AppError extends Error {

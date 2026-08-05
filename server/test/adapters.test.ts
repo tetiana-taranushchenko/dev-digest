@@ -11,7 +11,7 @@ import { assemblePrompt } from '../src/platform/prompt.js';
 import { groundFindings } from '../src/platform/grounding.js';
 import { estimateCost } from '../src/adapters/llm/pricing.js';
 
-describe('mock adapters (no network)', () => {
+describe('mock adapters (§5, no network)', () => {
   it('MockGitClient.diff parses into hunks with new line numbers', async () => {
     const git = new MockGitClient();
     const diff = await git.diff();
@@ -99,7 +99,7 @@ describe('structured review pipeline (mock LLM → grounding)', () => {
   });
 });
 
-describe('pricing / cost discipline', () => {
+describe('pricing / cost discipline (§11)', () => {
   it('estimates cost for known models and returns null for unknown', () => {
     expect(estimateCost('gpt-4o-mini', 1_000_000, 0)).toBeCloseTo(0.15, 5);
     expect(estimateCost('some-future-model', 1000, 1000)).toBeNull();

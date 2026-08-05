@@ -1,5 +1,5 @@
 /**
- * resilience primitives: timeouts on every external call + retry with
+ * §11 resilience primitives: timeouts on every external call + retry with
  * exponential backoff on transient failures (rate-limit / 5xx).
  */
 

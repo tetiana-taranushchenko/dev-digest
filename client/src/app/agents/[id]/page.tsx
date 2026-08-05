@@ -1,5 +1,5 @@
-/* /agents/:id — Agent Editor (A2, L03). Left agent list + Config editor
-   (model + system prompt). Tab state lives in ?tab=. Ported from
+/* /agents/:id — Agent Editor (A2, L03). Left agent list + 5-tab editor
+   (Config/Skills/Evals/Stats/CI). Tab state lives in ?tab=. Ported from
    screen_agents.jsx. */
 "use client";
 
@@ -12,7 +12,7 @@ import { AgentEditor } from "./_components/AgentEditor";
 import { useAgents, useAgent, useUpdateAgent } from "../../../lib/hooks/agents";
 import { ApiError } from "../../../lib/api";
 
-const VALID_TABS = ["config"];
+const VALID_TABS = ["config", "skills", "evals", "stats", "ci"];
 
 export default function AgentEditorPage() {
   const params = useParams<{ id: string }>();
@@ -99,8 +99,8 @@ export default function AgentEditorPage() {
             <Skeleton height={200} />
           </div>
         ) : (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 28px 0", flexShrink: 0 }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 28px 0" }}>
               <Icon.Cpu size={18} style={{ color: "var(--accent)" }} />
               <h1 style={{ fontSize: 18, fontWeight: 700 }}>{agent.name}</h1>
               <Badge color="var(--text-secondary)" mono>
@@ -113,9 +113,7 @@ export default function AgentEditorPage() {
                 </Button>
               </div>
             </div>
-            <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-              <AgentEditor agent={agent} tab={tab} onTab={setTab} />
-            </div>
+            <AgentEditor agent={agent} tab={tab} onTab={setTab} />
           </div>
         )}
       </div>

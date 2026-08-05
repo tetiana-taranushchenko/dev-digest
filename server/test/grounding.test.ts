@@ -35,7 +35,7 @@ function f(partial: Partial<Finding>): Finding {
   };
 }
 
-describe('citation grounding gate', () => {
+describe('citation grounding gate (§11)', () => {
   const diff = parseUnifiedDiff(DIFF);
 
   it('keeps a finding whose line intersects a real hunk', () => {

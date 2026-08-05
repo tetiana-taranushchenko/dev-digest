@@ -18,10 +18,10 @@ import {
 } from '@devdigest/shared';
 
 /**
- * Contract tests — parse/round-trip the fixtures from data.jsx/data2.jsx
+ * §6/§12 contract tests — parse/round-trip the fixtures from data.jsx/data2.jsx
  * so feature agents can rely on the schemas matching the prototype data.
  */
-describe('AI contracts parse fixtures', () => {
+describe('§6 AI contracts parse fixtures', () => {
   it('Review + Finding (data.jsx VERDICT/FINDINGS)', () => {
     const review = Review.parse({
       verdict: 'request_changes',
@@ -157,7 +157,7 @@ describe('AI contracts parse fixtures', () => {
   it('RunTrace (data2.jsx TRACE single-document)', () => {
     const trace = RunTrace.parse({
       config: { agent: 'Security Reviewer', version: 'v7', model: 'gpt-4.1', pr: 482, source: 'local' },
-      stats: { duration_ms: 8200, tokens_in: 14820, tokens_out: 1240, findings: 3, grounding: '3/3 passed' },
+      stats: { duration_ms: 8200, tokens_in: 14820, tokens_out: 1240, cost_usd: 0.06, findings: 3, grounding: '3/3 passed' },
       prompt_assembly: { system: 's', user: 'u' },
       tool_calls: [{ tool: 'read_file', args: "'src/config.ts'", meta: '1,240 bytes', ms: 120 }],
       raw_output: '{}',
@@ -169,7 +169,7 @@ describe('AI contracts parse fixtures', () => {
   });
 });
 
-describe('platform DTOs', () => {
+describe('§12 platform DTOs', () => {
   it('Settings defaults + passthrough', () => {
     const s = Settings.parse({ extra_key: 'x' });
     expect(s.theme).toBe('dark');

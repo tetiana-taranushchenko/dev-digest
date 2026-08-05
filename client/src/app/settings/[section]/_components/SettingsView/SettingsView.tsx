@@ -1,6 +1,5 @@
-/* Settings — left sub-nav + sections. API Keys (OpenRouter + GitHub PAT, with
-   Test connection) and Feature Models. Section is deep-linked at
-   /settings/:section. */
+/* Settings — left sub-nav + sections. API Keys (with Test connection), Automatic
+   Reviews, Integrations, Plugins. Section is deep-linked at /settings/:section. */
 "use client";
 
 import React from "react";
@@ -10,8 +9,16 @@ import { EmptyState, SETTINGS_SECTIONS } from "@devdigest/ui";
 import { useTranslations } from "next-intl";
 import { AppShell } from "../../../../../components/app-shell";
 import { SettingsApiKeys } from "./_components/SettingsApiKeys";
-import { SettingsModels } from "./_components/SettingsModels";
-import { DEFAULT_SECTION, SECTION_API_KEYS, SECTION_MODELS } from "./constants";
+import { SettingsAutoReviews } from "./_components/SettingsAutoReviews";
+import { SettingsIntegrations } from "./_components/SettingsIntegrations";
+import { SettingsPlugins } from "../PluginsSection";
+import {
+  DEFAULT_SECTION,
+  SECTION_API_KEYS,
+  SECTION_AUTO_REVIEWS,
+  SECTION_INTEGRATIONS,
+  SECTION_PLUGINS,
+} from "./constants";
 import { s } from "./styles";
 
 export function SettingsView() {
@@ -37,8 +44,12 @@ export function SettingsView() {
         <div style={s.pane}>
           {section === SECTION_API_KEYS ? (
             <SettingsApiKeys />
-          ) : section === SECTION_MODELS ? (
-            <SettingsModels />
+          ) : section === SECTION_AUTO_REVIEWS ? (
+            <SettingsAutoReviews />
+          ) : section === SECTION_INTEGRATIONS ? (
+            <SettingsIntegrations />
+          ) : section === SECTION_PLUGINS ? (
+            <SettingsPlugins />
           ) : (
             <EmptyState
               icon="Settings"

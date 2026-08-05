@@ -39,13 +39,14 @@ export const s = {
     color: "var(--text-secondary)",
   } satisfies CSSProperties,
   sizeBadgeBorder: (color: string): CSSProperties => ({ border: `1px solid ${color}` }),
-  scoreCell: { display: "flex", alignItems: "center" } satisfies CSSProperties,
-  updatedCell: {
-    fontSize: 12,
+  diffCell: { fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,
+  addCount: { color: "var(--code-add-text)" } satisfies CSSProperties,
+  delCount: { color: "var(--code-del-text)" } satisfies CSSProperties,
+  filesCell: {
+    fontSize: 13,
     color: "var(--text-muted)",
     textAlign: "right",
   } satisfies CSSProperties,
-  muted: { color: "var(--text-muted)" } satisfies CSSProperties,
   filterBar: {
     display: "flex",
     alignItems: "center",

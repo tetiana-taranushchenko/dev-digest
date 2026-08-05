@@ -1,4 +1,4 @@
-/* theme.tsx — dark/light theming via data-theme on <html>. */
+/* theme.tsx — dark/light theming via data-theme on <html> (spec §11/§13). */
 "use client";
 
 import React from "react";

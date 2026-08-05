@@ -13,7 +13,7 @@ interface GlobalShortcutHandlers {
 }
 
 /**
- * Binds the global keyboard shortcuts: Cmd/Ctrl+K opens the command
+ * Binds the global keyboard shortcuts (§9): Cmd/Ctrl+K opens the command
  * palette, `?` opens shortcuts help, and `g`-then-key navigates to a section.
  */
 export function useGlobalShortcuts({ onOpenPalette, onOpenHelp }: GlobalShortcutHandlers): void {

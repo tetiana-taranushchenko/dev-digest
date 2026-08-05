@@ -32,7 +32,7 @@ function splitSystem(messages: ChatMessage[]): {
 }
 
 /**
- * Anthropic LLMProvider.
+ * Anthropic LLMProvider (§5, §6).
  * - listModels: dynamic via GET /models.
  * - completeStructured: FORCED tool-use (single tool, input_schema = our JSON
  *   schema, tool_choice forces it), parse tool_use.input, Zod validate + reprompt.

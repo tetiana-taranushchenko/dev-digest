@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * git-why (`GET /pulls/:id/why?file&line`).
+ * §12 — git-why (`GET /pulls/:id/why?file&line`).
  *
  * A `WhyTimeline` answers "why does this line exist?" by walking git
  * blame/log (via `container.git`) for a file/line and reconstructing the

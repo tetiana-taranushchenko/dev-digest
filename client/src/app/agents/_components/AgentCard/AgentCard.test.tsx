@@ -1,7 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Agent } from "@devdigest/shared";
 import messages from "../../../../../messages/en/agents.json";
 import { AgentCard } from "./AgentCard";
@@ -16,21 +15,15 @@ const AGENT: Agent = {
   model: "gpt-4.1",
   system_prompt: "You are a security reviewer.",
   output_schema: null,
-  strategy: "single-pass",
-  ci_fail_on: "critical",
-  repo_intel: true,
   enabled: true,
   version: 1,
 };
 
 function renderWithIntl(ui: React.ReactElement) {
-  const qc = new QueryClient();
   return render(
-    <QueryClientProvider client={qc}>
-      <NextIntlClientProvider locale="en" messages={{ agents: messages }}>
-        {ui}
-      </NextIntlClientProvider>
-    </QueryClientProvider>,
+    <NextIntlClientProvider locale="en" messages={{ agents: messages }}>
+      {ui}
+    </NextIntlClientProvider>,
   );
 }
 

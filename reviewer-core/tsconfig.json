@@ -20,9 +20,7 @@
     "lib": ["ES2022"],
     "paths": {
       "@devdigest/shared": ["../server/src/vendor/shared/index.ts"],
-      "@devdigest/shared/*": ["../server/src/vendor/shared/*"],
-      "zod": ["./node_modules/zod"],
-      "zod/*": ["./node_modules/zod/*"]
+      "@devdigest/shared/*": ["../server/src/vendor/shared/*"]
     }
   },
   "include": ["src/**/*.ts"]

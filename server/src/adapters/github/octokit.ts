@@ -6,10 +6,7 @@ import type {
   PrDetail,
   PrStatus,
   GitHubReviewPayload,
-  CreateReviewCommentInput,
-  PrReviewComment,
   OpenPrPayload,
-  CommitFilesPayload,
   IssueMeta,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
@@ -23,7 +20,7 @@ function mapStatus(state: string, merged: boolean | undefined): PrStatus {
 }
 
 /**
- * GitHubClient over Octokit REST — thin. PAT auth (fine-grained).
+ * GitHubClient over Octokit REST (§5, §8) — thin. PAT auth (fine-grained).
  * Reads PR list/detail/files/commits/issue; posts reviews; opens PRs.
  */
 export class OctokitGitHubClient implements GitHubClient {
@@ -37,14 +34,10 @@ export class OctokitGitHubClient implements GitHubClient {
     return withRetry(() =>
       withTimeout(
         (async () => {
-          // Fetch open + recently merged/closed (most-recently-updated first) so
-          // the list shows which PRs are merged vs still open — not just open.
           const res = await this.octokit.rest.pulls.list({
             owner: repo.owner,
             repo: repo.name,
-            state: 'all',
-            sort: 'updated',
-            direction: 'desc',
+            state: 'open',
             per_page: 50,
           });
           return res.data.map((pr) => ({
@@ -123,7 +116,7 @@ export class OctokitGitHubClient implements GitHubClient {
     );
   }
 
-  /** linked issue via regex on PR body (#123 / closes #123). */
+  /** §9: linked issue via regex on PR body (#123 / closes #123). */
   private async resolveLinkedIssue(repo: RepoRef, body: string): Promise<IssueMeta | undefined> {
     const m = body.match(/(?:closes|fixes|resolves)?\s*#(\d+)/i);
     if (!m?.[1]) return undefined;
@@ -161,87 +154,6 @@ export class OctokitGitHubClient implements GitHubClient {
     );
   }
 
-  /** Shape an Octokit review-comment payload into our DTO. */
-  private mapReviewComment(c: {
-    id: number;
-    path: string;
-    line?: number | null;
-    original_line?: number | null;
-    side?: string | null;
-    body: string;
-    user: { login: string } | null;
-    created_at: string;
-    html_url: string;
-    in_reply_to_id?: number;
-  }): PrReviewComment {
-    return {
-      id: c.id,
-      path: c.path,
-      line: c.line ?? null,
-      original_line: c.original_line ?? null,
-      side: c.side === 'LEFT' ? 'LEFT' : 'RIGHT',
-      body: c.body,
-      user: c.user?.login ?? 'unknown',
-      created_at: c.created_at,
-      html_url: c.html_url,
-      in_reply_to_id: c.in_reply_to_id ?? null,
-      // GitHub drops `line` when the comment can no longer be placed on the diff.
-      is_outdated: c.line == null,
-    };
-  }
-
-  async listReviewComments(repo: RepoRef, n: number): Promise<PrReviewComment[]> {
-    return withRetry(() =>
-      withTimeout(
-        (async () => {
-          const res = await this.octokit.rest.pulls.listReviewComments({
-            owner: repo.owner,
-            repo: repo.name,
-            pull_number: n,
-            per_page: 100,
-          });
-          return res.data.map((c) => this.mapReviewComment(c));
-        })(),
-        TIMEOUT,
-      ),
-    );
-  }
-
-  async createReviewComment(
-    repo: RepoRef,
-    n: number,
-    input: CreateReviewCommentInput,
-  ): Promise<PrReviewComment> {
-    return withRetry(() =>
-      withTimeout(
-        (async () => {
-          if (input.inReplyTo != null) {
-            const res = await this.octokit.rest.pulls.createReplyForReviewComment({
-              owner: repo.owner,
-              repo: repo.name,
-              pull_number: n,
-              comment_id: input.inReplyTo,
-              body: input.body,
-            });
-            return this.mapReviewComment(res.data);
-          }
-          const res = await this.octokit.rest.pulls.createReviewComment({
-            owner: repo.owner,
-            repo: repo.name,
-            pull_number: n,
-            commit_id: input.commitId,
-            path: input.path,
-            line: input.line,
-            side: input.side ?? 'RIGHT',
-            body: input.body,
-          });
-          return this.mapReviewComment(res.data);
-        })(),
-        TIMEOUT,
-      ),
-    );
-  }
-
   async openPullRequest(repo: RepoRef, payload: OpenPrPayload): Promise<{ url: string }> {
     return withRetry(() =>
       withTimeout(
@@ -255,93 +167,6 @@ export class OctokitGitHubClient implements GitHubClient {
             body: payload.body,
           });
           return { url: res.data.html_url };
-        })(),
-        TIMEOUT,
-      ),
-    );
-  }
-
-  async commitFiles(
-    repo: RepoRef,
-    payload: CommitFilesPayload,
-  ): Promise<{ branch: string }> {
-    return withRetry(() =>
-      withTimeout(
-        (async () => {
-          const owner = repo.owner;
-          const name = repo.name;
-          const g = this.octokit.rest.git;
-
-          // Parent commit: the target branch if it already exists, else the base.
-          let parentSha: string;
-          let branchExists = false;
-          try {
-            const ref = await g.getRef({ owner, repo: name, ref: `heads/${payload.branch}` });
-            parentSha = ref.data.object.sha;
-            branchExists = true;
-          } catch {
-            const baseRef = await g.getRef({ owner, repo: name, ref: `heads/${payload.base}` });
-            parentSha = baseRef.data.object.sha;
-          }
-
-          // New tree layered on the parent's tree (so unrelated files are kept).
-          const parentCommit = await g.getCommit({ owner, repo: name, commit_sha: parentSha });
-          const tree = await g.createTree({
-            owner,
-            repo: name,
-            base_tree: parentCommit.data.tree.sha,
-            tree: payload.files.map((f) => ({
-              path: f.path,
-              mode: '100644',
-              type: 'blob',
-              content: f.contents,
-            })),
-          });
-
-          const commit = await g.createCommit({
-            owner,
-            repo: name,
-            message: payload.message,
-            tree: tree.data.sha,
-            parents: [parentSha],
-          });
-
-          if (branchExists) {
-            await g.updateRef({
-              owner,
-              repo: name,
-              ref: `heads/${payload.branch}`,
-              sha: commit.data.sha,
-              force: true,
-            });
-          } else {
-            await g.createRef({
-              owner,
-              repo: name,
-              ref: `refs/heads/${payload.branch}`,
-              sha: commit.data.sha,
-            });
-          }
-          return { branch: payload.branch };
-        })(),
-        TIMEOUT,
-      ),
-    );
-  }
-
-  async findOpenPr(repo: RepoRef, branch: string): Promise<{ url: string } | null> {
-    return withRetry(() =>
-      withTimeout(
-        (async () => {
-          const res = await this.octokit.rest.pulls.list({
-            owner: repo.owner,
-            repo: repo.name,
-            state: 'open',
-            head: `${repo.owner}:${branch}`,
-            per_page: 1,
-          });
-          const pr = res.data[0];
-          return pr ? { url: pr.html_url } : null;
         })(),
         TIMEOUT,
       ),

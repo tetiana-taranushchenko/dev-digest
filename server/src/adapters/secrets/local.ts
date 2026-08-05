@@ -3,12 +3,12 @@ import { dirname } from 'node:path';
 import type { SecretsProvider, SecretKey } from '@devdigest/shared';
 
 /**
- * LocalSecretsProvider — writable MVP secrets backend.
+ * LocalSecretsProvider (§5) — writable MVP secrets backend.
  *
  * Reads stored overrides from a JSON file on disk (BYO keys entered via the
  * UI), falling back to process.env when a key has not been set. Writes persist
- * to the same file (mode 0600) so keys survive restarts. GITHUB_TOKEN is the
- * canonical key; GITHUB_PAT is still read as a fallback for back-compat.
+ * to the same file (mode 0600) so keys survive restarts. GITHUB_TOKEN falls
+ * back to GITHUB_PAT (the name used in .env.example).
  *
  * Stored values take precedence over env so a key entered in the UI wins.
  * Swap for a VaultSecretsProvider later without touching call sites.

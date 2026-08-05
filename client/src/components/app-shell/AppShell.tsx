@@ -1,5 +1,5 @@
 /* AppShell.tsx — thin orchestrator: wires @devdigest/ui AppFrame to the command
-   palette, shortcuts help, global keyboard shortcuts, and the shell context.
+   palette, shortcuts help, global keyboard shortcuts, and the shell context (§9).
    All concerns live in ./hooks; overlay open/close is local view state. */
 "use client";
 

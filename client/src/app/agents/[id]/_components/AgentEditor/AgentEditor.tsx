@@ -1,13 +1,17 @@
-/* AgentEditor — basic agent config editor (model + system prompt). Later
-   lessons add Skills/Evals/Stats/CI tabs; the Part-0 starter ships Config only.
-   Tab state still lives in ?tab= for forward-compatibility. */
+/* AgentEditor — 5-tab editor (Config / Skills / Evals / Stats / CI). Config +
+   Skills are functional (A2). Evals (A4), Stats (A5), CI (A4) are owned feature
+   tab components imported by their default-export names. Tab state lives in ?tab=. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Tabs } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
+import AgentEvalsTab from "../AgentEvalsTab";
+import AgentCiTab from "../AgentCiTab";
+import AgentStatsTab from "../AgentStatsTab";
 import { ConfigTab } from "./_components/ConfigTab";
+import { SkillsTab } from "./_components/SkillsTab";
 import { TABS } from "./constants";
 import { s } from "./styles";
 
@@ -20,7 +24,11 @@ export function AgentEditor({ agent, tab, onTab }: { agent: Agent; tab: string; 
         <Tabs tabs={tabs} value={tab} onChange={onTab} pad="0 24px" />
       </div>
       <div style={s.body}>
-        <ConfigTab agent={agent} />
+        {tab === "config" && <ConfigTab agent={agent} />}
+        {tab === "skills" && <SkillsTab agent={agent} />}
+        {tab === "evals" && <AgentEvalsTab agentId={agent.id} />}
+        {tab === "stats" && <AgentStatsTab agentId={agent.id} />}
+        {tab === "ci" && <AgentCiTab agentId={agent.id} agentName={agent.name} />}
       </div>
     </div>
   );

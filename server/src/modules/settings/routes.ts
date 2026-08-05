@@ -1,11 +1,9 @@
 import type { FastifyInstance } from 'fastify';
-import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, eq } from 'drizzle-orm';
 import {
   SettingsUpdate,
   ConnTestRequest,
   type ConnTestResult,
-  type SecretsStatus,
 } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
@@ -13,7 +11,7 @@ import { GITHUB_PROVIDER, SECRET_KEY_BY_PROVIDER } from './constants.js';
 import { rowsToSettings } from './helpers.js';
 
 /**
- * F1 — settings module.
+ * F1 — settings module (§12).
  *   GET  /settings                 → current non-secret prefs
  *   PUT  /settings                 → upsert prefs (key/value rows)
  *   POST /settings/test-connection → test a provider key (OpenAI/Anthropic/GitHub)
@@ -21,8 +19,7 @@ import { rowsToSettings } from './helpers.js';
  * Secrets are NOT stored here — only non-secret prefs. test-connection reads
  * the key via SecretsProvider and does a cheap live call (listModels / GET user).
  */
-export default async function settingsRoutes(appBase: FastifyInstance) {
-  const app = appBase.withTypeProvider<ZodTypeProvider>();
+export default async function settingsRoutes(app: FastifyInstance) {
   const { container } = app;
 
   app.get('/settings', async (req) => {
@@ -34,21 +31,9 @@ export default async function settingsRoutes(appBase: FastifyInstance) {
     return rowsToSettings(rows);
   });
 
-  // Which provider keys are configured (booleans only — the values are NEVER
-  // returned). Drives the "Configured / Not set" badges in the API Keys panel.
-  app.get('/settings/secrets-status', async (req): Promise<SecretsStatus> => {
-    await getContext(container, req);
-    const entries = await Promise.all(
-      (Object.entries(SECRET_KEY_BY_PROVIDER) as [keyof SecretsStatus, string][]).map(
-        async ([provider, key]) => [provider, Boolean(await container.secrets.get(key))] as const,
-      ),
-    );
-    return Object.fromEntries(entries) as SecretsStatus;
-  });
-
-  app.put('/settings', { schema: { body: SettingsUpdate } }, async (req) => {
+  app.put('/settings', async (req) => {
     const { workspaceId, userId } = await getContext(container, req);
-    const body = req.body;
+    const body = SettingsUpdate.parse(req.body);
     for (const [key, value] of Object.entries(body)) {
       await container.db
         .insert(t.settings)
@@ -65,14 +50,8 @@ export default async function settingsRoutes(appBase: FastifyInstance) {
     return rowsToSettings(rows);
   });
 
-  app.post(
-    '/settings/test-connection',
-    {
-      schema: { body: ConnTestRequest },
-      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
-    },
-    async (req): Promise<ConnTestResult> => {
-    const { provider, key } = req.body;
+  app.post('/settings/test-connection', async (req): Promise<ConnTestResult> => {
+    const { provider, key } = ConnTestRequest.parse(req.body);
     try {
       // If the UI supplied a key, persist it (BYO key) before testing so the
       // test reflects — and the rest of the app can use — the new value.

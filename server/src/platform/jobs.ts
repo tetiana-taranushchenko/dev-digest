@@ -5,7 +5,7 @@ import * as t from '../db/schema.js';
 import { withTimeout, withRetry } from './resilience.js';
 
 /**
- * JobRunner — async work (clone, PR import, indexing, polling) on a
+ * §11 JobRunner — async work (clone, PR import, indexing, polling) on a
  * concurrency-limited p-queue, mirrored into the `jobs` table with
  * timeouts + retry/backoff.
  *

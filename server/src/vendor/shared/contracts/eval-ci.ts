@@ -3,7 +3,7 @@ import { Verdict, Finding } from './findings.js';
 import { EvalRun, EvalOwnerKind, Conformance, Provider, CiFailOn } from './knowledge.js';
 
 /**
- * A4 — Eval / CI / Compose / Conformance API contracts (L06).
+ * A4 — Eval / CI / Compose / Conformance API contracts (L06, §6/§12).
  *
  * These EXTEND the barrel; they do not modify existing contract files. The base
  * `EvalRun`, `EvalCase`, `EvalOwnerKind`, `Conformance` live in `knowledge.ts`;
@@ -223,7 +223,7 @@ export type CiRun = z.infer<typeof CiRun>;
 
 /**
  * The artifact shape uploaded by the CI action (`devdigest-result.json`).
- * Ingested back on refresh to populate `ci_runs` (L06).
+ * Ingested back on refresh to populate `ci_runs` (§7 L06).
  */
 export const CiResultArtifact = z.object({
   findings_count: z.number().int(),

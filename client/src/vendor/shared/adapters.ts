@@ -3,11 +3,10 @@ import type {
   PrMeta,
   PrDetail,
   IssueMeta,
-  PrReviewComment,
 } from './contracts/platform.js';
 
 /**
- * Adapter interfaces. ALL external calls go behind these interfaces.
+ * §5 — Adapter interfaces. ALL external calls go behind these interfaces.
  * Real implementations live in `apps/api/src/adapters/*`; mock implementations
  * live alongside for tests/dev (Services depend on the interface, not the impl).
  */
@@ -15,15 +14,9 @@ import type {
 // ---------- LLM ----------
 export const ModelInfo = z.object({
   id: z.string(),
-  provider: z.enum(['openai', 'anthropic', 'openrouter']),
+  provider: z.enum(['openai', 'anthropic']),
   label: z.string().nullish(),
   created: z.number().int().nullish(),
-  /** Pricing in USD per 1M tokens (when the provider exposes it, e.g. OpenRouter). */
-  pricing: z
-    .object({ promptPerM: z.number(), completionPerM: z.number() })
-    .nullish(),
-  /** Max context window in tokens (when the provider exposes it). */
-  contextLength: z.number().int().nullish(),
 });
 export type ModelInfo = z.infer<typeof ModelInfo>;
 
@@ -100,18 +93,6 @@ export interface GitHubReviewPayload {
   comments?: { path: string; line: number; body: string }[];
 }
 
-/** Create one standalone inline review comment (or a reply to a thread). */
-export interface CreateReviewCommentInput {
-  /** Head commit the comment pins to (GitHub requires commit_id). */
-  commitId: string;
-  path: string;
-  line: number;
-  side?: 'LEFT' | 'RIGHT';
-  body: string;
-  /** When set, post as a reply to that comment's thread instead of a new one. */
-  inReplyTo?: number;
-}
-
 export interface OpenPrPayload {
   title: string;
   head: string;
@@ -123,14 +104,6 @@ export interface GitHubClient {
   listPullRequests(repo: RepoRef): Promise<PrMeta[]>;
   getPullRequest(repo: RepoRef, n: number): Promise<PrDetail>;
   postReview(repo: RepoRef, n: number, review: GitHubReviewPayload): Promise<{ id: string }>;
-  /** List inline review comments on a PR (for the "Files changed" tab). */
-  listReviewComments(repo: RepoRef, n: number): Promise<PrReviewComment[]>;
-  /** Create one inline review comment (or reply) on a PR; returns the new comment. */
-  createReviewComment(
-    repo: RepoRef,
-    n: number,
-    input: CreateReviewCommentInput,
-  ): Promise<PrReviewComment>;
   openPullRequest(repo: RepoRef, payload: OpenPrPayload): Promise<{ url: string }>;
   getIssue(repo: RepoRef, n: number): Promise<IssueMeta>;
   /** GET /user — for "posting as @user". */
@@ -227,7 +200,7 @@ export interface AuthProvider {
   currentWorkspace(req: unknown): Promise<AuthWorkspace>;
 }
 
-// ---------- Secrets (pluggable; MVP = LocalSecretsProvider) ----------
+// ---------- Secrets (pluggable; MVP = EnvSecretsProvider) ----------
 export type SecretKey =
   | 'OPENAI_API_KEY'
   | 'ANTHROPIC_API_KEY'

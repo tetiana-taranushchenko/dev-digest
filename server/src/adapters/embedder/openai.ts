@@ -1,7 +1,7 @@
 import type { Embedder, LLMProvider } from '@devdigest/shared';
 
 /**
- * OpenAIEmbedder — text-embedding-3-small, 1536 dims. Delegates to the
+ * OpenAIEmbedder (§5) — text-embedding-3-small, 1536 dims. Delegates to the
  * OpenAI LLMProvider's embed() so there's a single OpenAI client.
  */
 export class OpenAIEmbedder implements Embedder {

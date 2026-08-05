@@ -1,4 +1,5 @@
-/** Adapter barrel — real + mock implementations behind the adapter interfaces. */
+/** Adapter barrel — real + mock implementations behind the §5 interfaces. */
+export { EnvSecretsProvider } from './secrets/env.js';
 export { LocalSecretsProvider } from './secrets/local.js';
 export { LocalNoAuthProvider } from './auth/local.js';
 export { OpenAIProvider } from './llm/openai.js';

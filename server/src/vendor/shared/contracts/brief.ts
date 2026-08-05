@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * PR Brief building blocks: Intent, Blast radius, Risks, PR History,
+ * §6 — PR Brief building blocks: Intent, Blast radius, Risks, PR History,
  * Smart Diff. Composed into PrBrief.
  */
 
