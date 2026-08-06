@@ -30,6 +30,30 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
   return c;
 }
 
+/**
+ * Ids of each (prId, agentId) group's most recent row, by createdAt — used to
+ * scope the FINDINGS totals to each agent's LATEST review only, so an old
+ * finding a later re-run no longer flags doesn't keep inflating the count
+ * forever as the PR gets pushed to and re-reviewed. Rows without an agentId
+ * each count as their own group (never merged with another).
+ */
+export function latestPerAgent<
+  T extends { id: string; prId: string; agentId: string | null; createdAt: Date | string | null },
+>(rows: T[]): Set<string> {
+  const latest = new Map<string, T>();
+  for (const row of rows) {
+    const key = `${row.prId}:${row.agentId ?? row.id}`;
+    const current = latest.get(key);
+    if (!current || toTime(row.createdAt) > toTime(current.createdAt)) latest.set(key, row);
+  }
+  return new Set([...latest.values()].map((row) => row.id));
+}
+
+function toTime(v: Date | string | null): number {
+  if (v == null) return -Infinity;
+  return v instanceof Date ? v.getTime() : Date.parse(v);
+}
+
 /** Sort weight per severity for ranking (lower = worse = shown first). */
 const SEVERITY_RANK: Record<string, number> = { CRITICAL: 0, WARNING: 1, SUGGESTION: 2 };
 

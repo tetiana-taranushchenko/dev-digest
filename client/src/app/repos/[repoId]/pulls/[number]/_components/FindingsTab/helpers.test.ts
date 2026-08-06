@@ -1,8 +1,8 @@
 /**
- * groupFindingsByRun — flattens review runs into one findings list (for
- * SeverityCounters) and indexes them by run_id (for the Timeline's per-run
- * hover popup). Pulled out of FindingsTab so it's testable without mounting
- * the component.
+ * groupFindingsByRun — builds the severity counters' source list (each
+ * agent's LATEST review only) and indexes every run's own findings by
+ * run_id (for the Timeline's per-run hover popup). Pulled out of
+ * FindingsTab so it's testable without mounting the component.
  */
 import { describe, it, expect } from "vitest";
 import type { FindingRecord, ReviewRecord } from "@devdigest/shared";
@@ -54,15 +54,50 @@ describe("groupFindingsByRun", () => {
     expect(groupFindingsByRun([])).toEqual({ allFindings: [], findingsByRunId: new Map() });
   });
 
-  it("flattens every run's findings into allFindings", () => {
+  it("allFindings includes every distinct agent's findings", () => {
     const f1 = finding({ id: "f1" });
     const f2 = finding({ id: "f2" });
-    const f3 = finding({ id: "f3" });
     const { allFindings } = groupFindingsByRun([
-      review({ run_id: "run-1", findings: [f1, f2] }),
-      review({ run_id: "run-2", findings: [f3] }),
+      review({ run_id: "run-1", agent_id: "security", findings: [f1] }),
+      review({ run_id: "run-2", agent_id: "performance", findings: [f2] }),
     ]);
-    expect(allFindings.map((f) => f.id)).toEqual(["f1", "f2", "f3"]);
+    expect(allFindings.map((f) => f.id).sort()).toEqual(["f1", "f2"]);
+  });
+
+  it("allFindings only counts each agent's LATEST review, not older re-runs", () => {
+    const stale = finding({ id: "stale" });
+    const current = finding({ id: "current" });
+    const { allFindings } = groupFindingsByRun([
+      review({
+        run_id: "run-old",
+        agent_id: "security",
+        created_at: "2026-06-01T00:00:00.000Z",
+        findings: [stale],
+      }),
+      review({
+        run_id: "run-new",
+        agent_id: "security",
+        created_at: "2026-06-11T00:00:00.000Z",
+        findings: [current],
+      }),
+    ]);
+    expect(allFindings.map((f) => f.id)).toEqual(["current"]);
+  });
+
+  it("findingsByRunId still keeps every run's own findings, even the superseded ones", () => {
+    const stale = finding({ id: "stale" });
+    const current = finding({ id: "current" });
+    const { findingsByRunId } = groupFindingsByRun([
+      review({ run_id: "run-old", agent_id: "security", created_at: "2026-06-01T00:00:00.000Z", findings: [stale] }),
+      review({
+        run_id: "run-new",
+        agent_id: "security",
+        created_at: "2026-06-11T00:00:00.000Z",
+        findings: [current],
+      }),
+    ]);
+    expect(findingsByRunId.get("run-old")).toEqual([stale]);
+    expect(findingsByRunId.get("run-new")).toEqual([current]);
   });
 
   it("indexes each run's findings by its run_id", () => {

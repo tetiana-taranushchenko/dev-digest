@@ -7,7 +7,7 @@ import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus, rollupSeverities, rankFindingsForPreview } from './status.js';
+import { deriveReviewStatus, rollupSeverities, rankFindingsForPreview, latestPerAgent } from './status.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -116,9 +116,19 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     // grouping is cheap.
     const prIds = rows.map((r) => r.id);
     const latestReviewByPr = new Map<string, { score: number | null }>();
+    // Latest review id per (PR, agent) — the FINDINGS totals below should
+    // reflect each agent's most recent pass, not every historical run (see
+    // `latestPerAgent`'s docstring).
+    let latestReviewIdsByPrAgent = new Set<string>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({
+          id: t.reviews.id,
+          prId: t.reviews.prId,
+          agentId: t.reviews.agentId,
+          score: t.reviews.score,
+          createdAt: t.reviews.createdAt,
+        })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
@@ -126,6 +136,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       for (const rv of reviewRows) {
         if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
       }
+      latestReviewIdsByPrAgent = latestPerAgent(reviewRows);
     }
 
     // COST per PR = sum of cost_usd for the LATEST "Run Review" batch (every
@@ -162,14 +173,15 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // FINDINGS-BY-SEVERITY + top findings per PR, across all review runs (not
-    // just the latest), excluding dismissed findings. One join + JS grouping,
-    // same style as the score/cost aggregations above. `top_findings` caps
-    // each PR's list for the FINDINGS column's hover preview.
+    // FINDINGS-BY-SEVERITY + top findings per PR, from each agent's LATEST
+    // review only (latestReviewIdsByPrAgent above) — not every historical
+    // run — excluding dismissed findings. One join + JS grouping, same style
+    // as the score/cost aggregations above. `top_findings` caps each PR's
+    // list for the FINDINGS column's hover preview.
     const TOP_FINDINGS_LIMIT = 5;
     const findingsBySeverityByPr = new Map<string, Record<'CRITICAL' | 'WARNING' | 'SUGGESTION', number>>();
     const topFindingsByPr = new Map<string, PrMeta['top_findings']>();
-    if (prIds.length > 0) {
+    if (latestReviewIdsByPrAgent.size > 0) {
       const findingRows = await container.db
         .select({
           prId: t.reviews.prId,
@@ -185,7 +197,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         })
         .from(t.findings)
         .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
-        .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review'), isNull(t.findings.dismissedAt)));
+        .where(and(inArray(t.reviews.id, [...latestReviewIdsByPrAgent]), isNull(t.findings.dismissedAt)));
       const allFindingsByPr = new Map<string, NonNullable<PrMeta['top_findings']>>();
       for (const f of findingRows) {
         if (f.severity !== 'CRITICAL' && f.severity !== 'WARNING' && f.severity !== 'SUGGESTION') continue;
