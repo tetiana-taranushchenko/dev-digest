@@ -6,6 +6,9 @@ Findings and insights for `server` (`@devdigest/api`). Empty for now — filled 
 
 ## What Doesn't Work
 
+### 2026-08-06 — `findings` table has no index on `review_id` or `dismissed_at`
+`server/src/db/migrations/0000_init.sql` defines `findings` (line ~142) with only a FK constraint (`findings_review_id_reviews_id_fk`, line 378) and zero `CREATE INDEX` statements — confirmed by grepping the migration for `CREATE INDEX` and finding none scoped to `findings`. `pulls/routes.ts`'s findings query joins `reviews` on `findings.review_id` and filters `WHERE dismissed_at IS NULL`, so today this is a sequential scan on every PR-list load. Fine at current data volume; before findings grow into the hundreds of thousands, add a composite index on `(review_id, dismissed_at)` (covers both the join and the filter in one index).
+
 ## Codebase Patterns
 
 ### 2026-08-04 — `agent_runs` rows for one "Run Review" click are created synchronously, before any LLM call
@@ -14,7 +17,13 @@ Findings and insights for `server` (`@devdigest/api`). Empty for now — filled 
 ### 2026-08-06 — Check `pulls/status.ts` before hand-rolling PR-list aggregation logic
 `status.ts` already exported `rollupSeverities` (severity tally), with a docblock naming the FINDINGS breakdown as a `pulls`-list concern alongside SCORE/STATUS — but nothing imported it (`grep -rn rollupSeverities server/src` found only its own declaration) until this session wired it into `routes.ts:207`; the first draft hand-rolled the same tally inline instead of finding it. `rankFindingsForPreview` (severity+confidence sort, capped) was added next to it for the same reason. `pulls/status.ts` is the intended home for pure PR-list rollup helpers — check there first.
 
+### 2026-08-06 — `pulls/routes.ts`'s findings query fetches ALL non-dismissed findings on purpose — it feeds two consumers, not one
+`routes.ts:184-226` selects every non-dismissed finding (incl. `rationale`) per PR, then both `rollupSeverities(list)` (severity totals for `findings_by_severity`) and `rankFindingsForPreview(list, 5)` (top-5 for the hover preview) run over that *same* full list. An AI review flagged this as wasteful ("fetches everything just to keep 5"), proposing a window-function top-5-only query — that fix would silently break `findings_by_severity`, which needs the full non-dismissed set to count correctly, not just the top 5. If optimizing this later, only `rationale` (needed solely by the top-5 preview) is safe to defer into a second narrower query — the severity counts still need every row.
+
 ## Tool & Library Notes
+
+### 2026-08-06 — `.select({ key: table })` in Drizzle selects every column of that table, not just named ones
+`pulls/routes.ts`'s findings query and `reviews/repository/run.repo.ts:46`'s `listRunsForPull` both use `.select({ run: t.agentRuns, agentName: t.agents.name })` — `run` maps to the *entire* `agentRuns` row (all columns), unlike `activeRunsForPull` a few lines above (`run.repo.ts:16-21`) which picks individual named columns. This caused a false-positive AI code-review finding claiming `cost_usd` was missing from the result because the select clause "wasn't updated" — it didn't need to be; `run.costUsd` was already present via the whole-table select, confirmed by diffing commit `672fac9` (only the mapping line `cost_usd: run.costUsd,` was added, select clause unchanged). When reviewing/writing Drizzle selects, check whether the object value is a column (`t.x.col`) or a whole table (`t.x`) before assuming a field is unfetched.
 
 ### 2026-08-04 — Don't hand-write migrations; edit `schema/*.ts` and run `pnpm db:generate`
 Root/`server/CLAUDE.md` flags `server/src/db/migrations/` as do-not-touch, but the actual workflow (per `server/package.json`'s `db:generate: "drizzle-kit generate"`) is: edit the Drizzle schema file (e.g. `server/src/db/schema/runs.ts`), then run `pnpm db:generate` to produce the migration SQL, then `pnpm db:migrate` to apply it. Added `costUsd: doublePrecision('cost_usd')` to `agentRuns` this way for the Run Cost Badge feature.

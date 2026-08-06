@@ -27,6 +27,9 @@ Adding `cost_usd: z.number().nullable()` to `RunStats`/`RunSummary` (`client/src
 ### 2026-08-06 — A viewport-aware popup's "flip above" check should use a minimum usable height, not its max height
 `FindingsPopover` first flipped above its trigger whenever `spaceBelow < POPUP_MAX_HEIGHT` (420px) — since the panel already scrolls internally, this flipped it for any row past the window's vertical middle, which read as arbitrary in testing (a ~300px-tall popup flipped up despite ~300-400px of real room below). Fixed by flipping only when `spaceBelow < POPUP_MIN_HEIGHT` (200px, `FindingsPopover.tsx:22,34`) — otherwise it opens down and scrolls internally.
 
+### 2026-08-06 — Severity tally loops need an `in counts` guard, or an unrecognized severity produces `NaN`
+`RunHistory.tsx:28`'s `RunFindingsSummary` did `counts[f.severity as Severity]++` with no check that `f.severity` is a known key — `severity` is a free-text DB column (`server/src/db/schema/reviews.ts:36`, no enum constraint), so any unexpected value makes `counts[...]` `undefined` and `undefined++` is `NaN`, silently breaking the badge. `SeverityCounters.tsx:24` already guards this with `f.severity in c`; `RunHistory.tsx` was missed when the same tally logic was duplicated there. Fixed by adding the same `f.severity in counts` guard. Any future severity-tally loop should copy this guard rather than the unguarded version.
+
 ## Session Notes
 
 ## Open Questions
