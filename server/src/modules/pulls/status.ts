@@ -30,6 +30,22 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
   return c;
 }
 
+/** Sort weight per severity for ranking (lower = worse = shown first). */
+const SEVERITY_RANK: Record<string, number> = { CRITICAL: 0, WARNING: 1, SUGGESTION: 2 };
+
+/** Worst-severity, highest-confidence first, capped to `limit` — the PR
+ *  list's findings hover preview shouldn't ship every finding for every PR. */
+export function rankFindingsForPreview<T extends { severity: string; confidence: number }>(
+  rows: T[],
+  limit: number,
+): T[] {
+  return [...rows]
+    .sort(
+      (a, b) => (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9) || b.confidence - a.confidence,
+    )
+    .slice(0, limit);
+}
+
 /**
  * Review-freshness status for the PR list. Merged/closed PRs keep their GitHub
  * merge state; open PRs map to:

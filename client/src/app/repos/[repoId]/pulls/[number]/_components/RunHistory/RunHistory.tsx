@@ -2,9 +2,53 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import { Badge, Icon, CircularScore, SeverityBadge, type IconName } from "@devdigest/ui";
+import type { RunSummary, PrCommit, FindingRecord, Severity } from "@devdigest/shared";
 import { formatCost, formatTokenCount } from "@/lib/format";
+import { SEVERITY_ORDER } from "@/lib/severity";
+import { FindingsPopover } from "@/components/findings-popover";
+
+const EMPTY_FINDINGS: FindingRecord[] = [];
+
+/** One run's findings summary: severity badges + hover popup when there are
+ *  any, otherwise the plain "N findings · M blockers" text. Memoized so
+ *  clicking the severity filter above (which re-renders the whole timeline)
+ *  doesn't re-tally every run's findings on every render. */
+const RunFindingsSummary = React.memo(function RunFindingsSummary({
+  findings,
+  findingsCount,
+  blockers,
+}: {
+  findings: FindingRecord[];
+  findingsCount: number | null;
+  blockers: number | null;
+}) {
+  const t = useTranslations("prReview");
+  const counts: Record<Severity, number> = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
+  for (const f of findings) if (!f.dismissed_at) counts[f.severity as Severity]++;
+  const nonZero = SEVERITY_ORDER.filter((sev) => counts[sev] > 0);
+
+  if (nonZero.length === 0) {
+    return (
+      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+        {t("runStatus.findings", { count: findingsCount ?? 0 })}
+        {(blockers ?? 0) > 0 ? t("runStatus.blockers", { count: blockers ?? 0 }) : ""}
+      </div>
+    );
+  }
+
+  const total = nonZero.reduce((sum, sev) => sum + counts[sev], 0);
+  return (
+    <FindingsPopover
+      items={findings}
+      total={total}
+      heading={`${total} finding${total === 1 ? "" : "s"} in this run`}
+      trigger={nonZero.map((sev) => (
+        <SeverityBadge key={sev} severity={sev} count={counts[sev]} compact />
+      ))}
+    />
+  );
+});
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -88,12 +132,15 @@ function tsOf(s: string | null | undefined): number {
 export function RunHistory({
   runs,
   commits = [],
+  findingsByRunId,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** This run's full findings, for the "N findings" hover preview below. */
+  findingsByRunId?: Map<string, FindingRecord[]>;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -190,10 +237,11 @@ export function RunHistory({
                 </div>
               )}
               {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
-                </div>
+                <RunFindingsSummary
+                  findings={findingsByRunId?.get(r.run_id) ?? EMPTY_FINDINGS}
+                  findingsCount={r.findings_count}
+                  blockers={r.blockers}
+                />
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>

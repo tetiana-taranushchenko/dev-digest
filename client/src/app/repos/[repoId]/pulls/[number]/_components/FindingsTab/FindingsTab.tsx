@@ -5,8 +5,9 @@ import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
+import { SeverityCounters } from "./SeverityCounters";
 import { s } from "./styles";
-import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
+import type { FindingRecord, ReviewRecord, RunSummary, PrCommit, Severity } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
 
 interface FindingsTabProps {
@@ -71,6 +72,21 @@ export function FindingsTab({
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
 
+  const [severityFilter, setSeverityFilter] = React.useState<Severity | null>(null);
+
+  // Timeline rows only carry denormalized counts (RunSummary has no findings
+  // array); findingsByRunId maps each run's full findings for the Timeline's
+  // hover popup, keyed by the same run_id the timeline rows use.
+  const { allFindings, findingsByRunId } = React.useMemo(() => {
+    const m = new Map<string, FindingRecord[]>();
+    const all: FindingRecord[] = [];
+    for (const r of runs) {
+      if (r.run_id) m.set(r.run_id, r.findings);
+      all.push(...r.findings);
+    }
+    return { allFindings: all, findingsByRunId: m };
+  }, [runs]);
+
   return (
     <section>
       {liveRunIds.length > 0 && (
@@ -131,6 +147,7 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            findingsByRunId={findingsByRunId}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}
@@ -144,6 +161,13 @@ export function FindingsTab({
       >
         Review runs
       </SectionLabel>
+      {allFindings.length > 0 && (
+        <SeverityCounters
+          findings={allFindings}
+          selected={severityFilter}
+          onSelect={setSeverityFilter}
+        />
+      )}
       {runs.length === 0 ? (
         reviewRunning || liveRunIds.length > 0 ? null : (
           <EmptyState
@@ -164,6 +188,7 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            severityFilter={severityFilter}
           />
         ))
       )}
