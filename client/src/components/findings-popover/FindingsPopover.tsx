@@ -7,8 +7,8 @@
 
 import React from "react";
 import { createPortal } from "react-dom";
-import { SeverityBadge, CategoryTag, ConfidenceNum } from "@devdigest/ui";
-import type { Finding, Severity, Category } from "@devdigest/shared";
+import { SeverityBadge, CategoryTag, ConfidenceNum, type Severity, type Category } from "@devdigest/ui";
+import type { Finding } from "@devdigest/shared";
 
 function lineLabel(f: Finding): string {
   return f.start_line === f.end_line ? String(f.start_line) : `${f.start_line}-${f.end_line}`;
