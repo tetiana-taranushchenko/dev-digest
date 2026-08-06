@@ -25,7 +25,7 @@ const RunFindingsSummary = React.memo(function RunFindingsSummary({
 }) {
   const t = useTranslations("prReview");
   const counts: Record<Severity, number> = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
-  for (const f of findings) if (!f.dismissed_at) counts[f.severity as Severity]++;
+  for (const f of findings) if (!f.dismissed_at && f.severity in counts) counts[f.severity as Severity]++;
   const nonZero = SEVERITY_ORDER.filter((sev) => counts[sev] > 0);
 
   if (nonZero.length === 0) {
