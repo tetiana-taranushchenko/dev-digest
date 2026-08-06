@@ -101,7 +101,7 @@ describe("RunHistory — findings summary", () => {
   it("falls back to plain 'N findings · M blockers' text when no findings data is available for the run", () => {
     renderRuns([run({ findings_count: 2, blockers: 1 })]);
     expect(screen.getByText(/2 findings/)).toBeInTheDocument();
-    expect(screen.getByText(/1 blockers/)).toBeInTheDocument();
+    expect(screen.getByText(/1 blocker/)).toBeInTheDocument(); // singular, not "1 blockers"
   });
 
   it("shows severity badges (not the plain text) when the run's findings are available", () => {
@@ -109,7 +109,7 @@ describe("RunHistory — findings summary", () => {
       [run({ run_id: "run-1", findings_count: 1, blockers: 1 })],
       new Map([["run-1", [finding({})]]]),
     );
-    expect(screen.queryByText(/1 findings/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/1 finding/)).not.toBeInTheDocument();
     // SeverityBadge is `compact` here (icon + count, no label) — its count is the
     // one unambiguous piece of visible text this run's summary renders.
     expect(screen.getByText("1")).toBeInTheDocument();

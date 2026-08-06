@@ -6,6 +6,7 @@ import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { SeverityCounters } from "./SeverityCounters";
+import { groupFindingsByRun } from "./helpers";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit, Severity } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
@@ -73,19 +74,7 @@ export function FindingsTab({
   }, []);
 
   const [severityFilter, setSeverityFilter] = React.useState<Severity | null>(null);
-
-  // Timeline rows only carry denormalized counts (RunSummary has no findings
-  // array); findingsByRunId maps each run's full findings for the Timeline's
-  // hover popup, keyed by the same run_id the timeline rows use.
-  const { allFindings, findingsByRunId } = React.useMemo(() => {
-    const m = new Map<string, FindingRecord[]>();
-    const all: FindingRecord[] = [];
-    for (const r of runs) {
-      if (r.run_id) m.set(r.run_id, r.findings);
-      all.push(...r.findings);
-    }
-    return { allFindings: all, findingsByRunId: m };
-  }, [runs]);
+  const { allFindings, findingsByRunId } = React.useMemo(() => groupFindingsByRun(runs), [runs]);
 
   return (
     <section>

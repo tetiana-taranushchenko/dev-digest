@@ -47,8 +47,8 @@
     "error": "error",
     "cancelled": "cancelled",
     "running": "running",
-    "findings": "{count} finding(s)",
-    "blockers": " · {count} blockers"
+    "findings": "{count, plural, one {# finding} other {# findings}}",
+    "blockers": " · {count, plural, one {# blocker} other {# blockers}}"
   },
   "smartDiff": {
     "coreLabel": "Core",
