@@ -4,11 +4,14 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
+import { Icon, Avatar, Badge, CircularScore, SeverityBadge } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
+import { formatCost } from "@/lib/format";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
+import { FindingsPopover } from "@/components/findings-popover";
+import { SEVERITY_ORDER } from "@/lib/severity";
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
@@ -53,10 +56,26 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           <span style={s.muted}>—</span>
         )}
       </div>
+      <div style={s.findingsCell}>
+        {SEVERITY_ORDER.some((sev) => (pr.findings_by_severity?.[sev] ?? 0) > 0) ? (
+          <FindingsPopover
+            items={pr.top_findings ?? []}
+            total={SEVERITY_ORDER.reduce((sum, sev) => sum + (pr.findings_by_severity?.[sev] ?? 0), 0)}
+            trigger={SEVERITY_ORDER.filter((sev) => (pr.findings_by_severity?.[sev] ?? 0) > 0).map((sev) => (
+              <SeverityBadge key={sev} severity={sev} count={pr.findings_by_severity![sev]} compact />
+            ))}
+          />
+        ) : (
+          <span style={s.muted}>—</span>
+        )}
+      </div>
       <div>
         <Badge dot color={st.c} bg="transparent">
           {t(`list.status.${st.labelKey}`)}
         </Badge>
+      </div>
+      <div className="mono" style={s.costCell}>
+        {formatCost(pr.cost_usd)}
       </div>
       <div style={s.updatedCell}>{relativeTime(pr.updated_at)}</div>
     </div>

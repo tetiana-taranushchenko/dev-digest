@@ -31,6 +31,46 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
 }
 
 /**
+ * Ids of each (prId, agentId) group's most recent row, by createdAt — used to
+ * scope the FINDINGS totals to each agent's LATEST review only, so an old
+ * finding a later re-run no longer flags doesn't keep inflating the count
+ * forever as the PR gets pushed to and re-reviewed. Rows without an agentId
+ * each count as their own group (never merged with another).
+ */
+export function latestPerAgent<
+  T extends { id: string; prId: string; agentId: string | null; createdAt: Date | string | null },
+>(rows: T[]): Set<string> {
+  const latest = new Map<string, T>();
+  for (const row of rows) {
+    const key = `${row.prId}:${row.agentId ?? row.id}`;
+    const current = latest.get(key);
+    if (!current || toTime(row.createdAt) > toTime(current.createdAt)) latest.set(key, row);
+  }
+  return new Set([...latest.values()].map((row) => row.id));
+}
+
+function toTime(v: Date | string | null): number {
+  if (v == null) return -Infinity;
+  return v instanceof Date ? v.getTime() : Date.parse(v);
+}
+
+/** Sort weight per severity for ranking (lower = worse = shown first). */
+const SEVERITY_RANK: Record<string, number> = { CRITICAL: 0, WARNING: 1, SUGGESTION: 2 };
+
+/** Worst-severity, highest-confidence first, capped to `limit` — the PR
+ *  list's findings hover preview shouldn't ship every finding for every PR. */
+export function rankFindingsForPreview<T extends { severity: string; confidence: number }>(
+  rows: T[],
+  limit: number,
+): T[] {
+  return [...rows]
+    .sort(
+      (a, b) => (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9) || b.confidence - a.confidence,
+    )
+    .slice(0, limit);
+}
+
+/**
  * Review-freshness status for the PR list. Merged/closed PRs keep their GitHub
  * merge state; open PRs map to:
  *  - `needs_review` — never reviewed, OR head moved since the last review

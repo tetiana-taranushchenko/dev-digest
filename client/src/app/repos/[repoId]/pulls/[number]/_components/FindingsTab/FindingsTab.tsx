@@ -5,8 +5,10 @@ import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
+import { SeverityCounters } from "./SeverityCounters";
+import { groupFindingsByRun } from "./helpers";
 import { s } from "./styles";
-import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
+import type { FindingRecord, ReviewRecord, RunSummary, PrCommit, Severity } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
 
 interface FindingsTabProps {
@@ -71,6 +73,9 @@ export function FindingsTab({
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
 
+  const [severityFilter, setSeverityFilter] = React.useState<Severity | null>(null);
+  const { allFindings, findingsByRunId } = React.useMemo(() => groupFindingsByRun(runs), [runs]);
+
   return (
     <section>
       {liveRunIds.length > 0 && (
@@ -131,6 +136,7 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            findingsByRunId={findingsByRunId}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}
@@ -144,6 +150,13 @@ export function FindingsTab({
       >
         Review runs
       </SectionLabel>
+      {allFindings.length > 0 && (
+        <SeverityCounters
+          findings={allFindings}
+          selected={severityFilter}
+          onSelect={setSeverityFilter}
+        />
+      )}
       {runs.length === 0 ? (
         reviewRunning || liveRunIds.length > 0 ? null : (
           <EmptyState
@@ -164,6 +177,7 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            severityFilter={severityFilter}
           />
         ))
       )}

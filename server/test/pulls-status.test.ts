@@ -6,7 +6,13 @@
  * + age, so it gets unit coverage independent of the route's queries.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import {
+  deriveReviewStatus,
+  rollupSeverities,
+  rankFindingsForPreview,
+  latestPerAgent,
+  STALE_DAYS,
+} from '../src/modules/pulls/status.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);
@@ -64,5 +70,34 @@ describe('rollupSeverities', () => {
 
   it('is all-zero for no findings', () => {
     expect(rollupSeverities([])).toEqual({ critical: 0, warning: 0, suggestion: 0 });
+  });
+});
+
+describe('rankFindingsForPreview', () => {
+  const f = (severity: string, confidence: number) => ({ severity, confidence });
+
+  it('sorts worst-severity first, then highest-confidence within the same severity', () => {
+    expect(
+      rankFindingsForPreview(
+        [f('SUGGESTION', 0.9), f('CRITICAL', 0.6), f('CRITICAL', 0.95), f('WARNING', 0.8)],
+        10,
+      ),
+    ).toEqual([f('CRITICAL', 0.95), f('CRITICAL', 0.6), f('WARNING', 0.8), f('SUGGESTION', 0.9)]);
+  });
+
+  it('caps the result to `limit`, keeping the worst/highest-confidence ones', () => {
+    const rows = [f('SUGGESTION', 0.5), f('CRITICAL', 0.5), f('WARNING', 0.5), f('CRITICAL', 0.9)];
+    expect(rankFindingsForPreview(rows, 2)).toEqual([f('CRITICAL', 0.9), f('CRITICAL', 0.5)]);
+  });
+
+  it('does not mutate the input array', () => {
+    const rows = [f('WARNING', 0.5), f('CRITICAL', 0.9)];
+    const copy = [...rows];
+    rankFindingsForPreview(rows, 10);
+    expect(rows).toEqual(copy);
+  });
+
+  it('is empty for no findings', () => {
+    expect(rankFindingsForPreview([], 5)).toEqual([]);
   });
 });
