@@ -1,0 +1,41 @@
+# Layer Map
+
+Living reference for [SKILL.md](SKILL.md): which path in `server/`/`reviewer-core/`
+belongs to which ring, and which modules carry the full `routes → service →
+repository` split vs. stay flat by design. Update this file whenever a module
+is added or crosses the graduated-layering line (see the skill's "Graduated
+Layering by Module Complexity" section).
+
+## Rings → paths
+
+| Ring (innermost → outermost) | Where it lives | Role |
+|---|---|---|
+| Domain | `reviewer-core/src/**`, `@devdigest/shared` contracts | Pure business logic, zero framework/infra deps |
+| Application | `modules/<name>/service.ts`, `constants.ts`, `helpers.ts` | Orchestration, business rules, DTO mapping |
+| Infrastructure (ports/adapters) | `modules/<name>/repository.ts`, `server/src/adapters/*`, `server/src/platform/container.ts` | Drizzle data access, external system adapters, composition root |
+| Presentation | `modules/<name>/routes.ts` | Fastify handler + Zod request validation, thin |
+
+## Module classification
+
+Registered in `server/src/modules/index.ts`. "Full split" = has `service.ts`
+(and `repository.ts` if it touches the DB); "Flat" = `routes.ts` only, or
+`routes.ts` + a thin helper file, correctly with no `service.ts` per the
+graduated-layering rule.
+
+| Module | Classification | Layers present | Why |
+|---|---|---|---|
+| `agents` | Full split | routes, service, repository, constants, helpers | Business rules around agent versioning/config |
+| `reviews` | Full split | routes, service, repository (+ `repository/` sub-dir), run-executor, diff-loader, findings, constants, helpers | Core review-run orchestration — the most business-logic-heavy module |
+| `repo-intel` | Full split | routes, service, repository, `pipeline/`, constants, types | Coordinates multiple data sources (graph, embeddings, ast-grep) |
+| `repos` | Full split | routes, service, repository, constants, helpers | Repo lifecycle (add/remove/clone) has real coordination logic |
+| `pulls` | Flat today, graduating | routes, status (pure helpers) — `service.ts` planned | `GET /repos/:id/pulls` grew real business logic (GitHub sync-on-read, diff-stat backfill, cost-window batching, severity rollup) — crossed the graduated-layering line; extraction into `service.ts` is a tracked follow-up, not yet landed |
+| `settings` | Flat | routes, constants, feature-models, helpers | Read/write config + BYO-key test-connection; no cross-source coordination |
+| `polling` | Flat | routes only | Pure trigger-a-sync endpoint |
+| `workspace` | Flat | routes only | Pure CRUD |
+
+## Composition root
+
+`server/src/platform/container.ts` + `server/src/adapters/*` (llm, github, git,
+astgrep, secrets, tokenizer, embedder, codeindex, depgraph, auth) are the only
+place interface and concrete implementation are wired together — see the
+skill's "Composition Root" section.
