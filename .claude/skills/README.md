@@ -18,6 +18,8 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Captures non-obvious findings into the touched package's INSIGHTS.md |
+| [react-frontend-architecture](react-frontend-architecture/SKILL.md) | Frontend | Where components/hooks/constants/business-logic live, folder structure, Next.js App Router organization |
+| [pr-self-review](pr-self-review/SKILL.md) | Shared | Runs applicable skills against the branch diff before opening a PR; blocks push on critical findings |
 
 ## What Are Skills?
 

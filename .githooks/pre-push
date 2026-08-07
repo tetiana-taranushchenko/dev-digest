@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Runs the pr-self-review gate before every `git push`. All the logic lives
+# in .claude/skills/pr-self-review/scripts/check-gate.sh — this file just
+# wires it into git.
+#
+# Activate once per clone with:
+#   git config core.hooksPath .githooks
+#   chmod +x .githooks/pre-push .claude/skills/pr-self-review/scripts/*.sh
+#
+# Bypass for one push with: git push --no-verify
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+gate_script="$repo_root/.claude/skills/pr-self-review/scripts/check-gate.sh"
+
+if [ ! -x "$gate_script" ]; then
+  # Hook installed but skill scripts missing/not executable — don't block
+  # pushes over a broken hook setup, just warn.
+  echo "pr-self-review: $gate_script not found or not executable, skipping check."
+  exit 0
+fi
+
+"$gate_script" || {
+  echo ""
+  echo "Push blocked: pr-self-review found critical finding(s)."
+  echo "Fix them, add a 'pr-self-review-ignore:' comment with justification for a false positive, or run 'git push --no-verify' to bypass (not recommended)."
+  exit 1
+}
