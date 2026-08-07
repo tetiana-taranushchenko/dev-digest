@@ -31,6 +31,8 @@ export function ReviewRunAccordion({
   headSha,
   targetRunId = null,
   targetNonce = 0,
+  targetFindingId = null,
+  targetFindingNonce = 0,
   severityFilter = null,
 }: {
   review: ReviewRecord;
@@ -42,18 +44,24 @@ export function ReviewRunAccordion({
    *  (driven from the Timeline: clicking an agent name navigates here). */
   targetRunId?: string | null;
   targetNonce?: number;
+  /** When this run's findings include this id, the accordion opens and scrolls
+   *  into view too (driven from a findings popover: clicking a finding). */
+  targetFindingId?: string | null;
+  targetFindingNonce?: number;
   /** When set, the body's FindingsPanel shows only findings of this severity. */
   severityFilter?: Severity | null;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const containsTargetFinding =
+    targetFindingId != null && review.findings.some((f) => f.id === targetFindingId);
   React.useEffect(() => {
-    if (review.run_id && review.run_id === targetRunId) {
+    if ((review.run_id && review.run_id === targetRunId) || containsTargetFinding) {
       setOpen(true);
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetRunId, targetNonce, review.run_id]);
+  }, [targetRunId, targetNonce, targetFindingId, targetFindingNonce, review.run_id]);
   const del = useDeleteReview(prId);
   const findings = review.findings;
   const blockers = findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
@@ -156,6 +164,8 @@ export function ReviewRunAccordion({
             repoFullName={repoFullName}
             headSha={headSha}
             severityFilter={severityFilter}
+            targetFindingId={targetFindingId}
+            targetFindingNonce={targetFindingNonce}
           />
         </div>
       )}

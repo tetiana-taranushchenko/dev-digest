@@ -18,6 +18,8 @@ export function FindingsPanel({
   repoFullName,
   headSha,
   severityFilter = null,
+  targetFindingId = null,
+  targetFindingNonce = 0,
 }: {
   findings: FindingRecord[];
   prId: string;
@@ -25,6 +27,10 @@ export function FindingsPanel({
   headSha?: string | null;
   /** When set, only findings of this severity are shown. */
   severityFilter?: Severity | null;
+  /** Jump here from a popover: focuses, force-expands, and scrolls to this
+   *  finding once it's visible in `shown`. */
+  targetFindingId?: string | null;
+  targetFindingNonce?: number;
 }) {
   const t = useTranslations("prReview");
   const action = useFindingAction();
@@ -35,6 +41,22 @@ export function FindingsPanel({
     () => visibleFindings(findings, hideLow, severityFilter),
     [findings, hideLow, severityFilter],
   );
+
+  // A target finding might be hidden by the local "hide low confidence"
+  // toggle — clear it so the target is guaranteed to show up in `shown`.
+  React.useEffect(() => {
+    if (targetFindingId) setHideLow(false);
+  }, [targetFindingId, targetFindingNonce]);
+
+  React.useEffect(() => {
+    if (!targetFindingId) return;
+    const idx = shown.findIndex((f) => f.id === targetFindingId);
+    if (idx === -1) return; // not among this run's findings, or still filtered out
+    setFocusIdx(idx);
+    document
+      .querySelector(`[data-finding-id="${targetFindingId}"]`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [targetFindingId, targetFindingNonce, shown]);
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
@@ -70,6 +92,7 @@ export function FindingsPanel({
               f={f}
               focused={i === focusIdx}
               defaultExpanded={i === 0}
+              forceExpanded={f.id === targetFindingId}
               pending={action.isPending}
               repoFullName={repoFullName}
               headSha={headSha}

@@ -23,6 +23,10 @@ interface FindingsTabProps {
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
+  /** A finding id to jump to on arrival (e.g. clicked from the PR list's
+   *  popover, carried over via the ?finding= query param). */
+  initialFindingId?: string | null;
+  onInitialFindingConsumed?: () => void;
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
   onRunDone: () => void;
@@ -39,6 +43,8 @@ export function FindingsTab({
   cancelMutation,
   repoFullName,
   headSha,
+  initialFindingId,
+  onInitialFindingConsumed,
   onOpenTrace,
   onDelete,
   onRunDone,
@@ -75,6 +81,28 @@ export function FindingsTab({
 
   const [severityFilter, setSeverityFilter] = React.useState<Severity | null>(null);
   const { allFindings, findingsByRunId } = React.useMemo(() => groupFindingsByRun(runs), [runs]);
+
+  // Popover → Review-runs navigation: clicking a finding (in the Timeline
+  // popover, or via ?finding= on arrival from the PR list) opens + scrolls to
+  // that finding's card below, and clears any filter that would hide it.
+  const [findingTarget, setFindingTarget] = React.useState<{ findingId: string; n: number } | null>(null);
+  const handleGoToFinding = useCallback((findingId: string) => {
+    setSeverityFilter(null);
+    setFindingTarget((p) => ({ findingId, n: (p?.n ?? 0) + 1 }));
+  }, []);
+
+  const consumedInitialFinding = React.useRef(false);
+  React.useEffect(() => {
+    if (
+      initialFindingId &&
+      !consumedInitialFinding.current &&
+      runs.some((r) => r.findings.some((f) => f.id === initialFindingId))
+    ) {
+      handleGoToFinding(initialFindingId);
+      consumedInitialFinding.current = true;
+      onInitialFindingConsumed?.();
+    }
+  }, [initialFindingId, runs, handleGoToFinding, onInitialFindingConsumed]);
 
   return (
     <section>
@@ -139,7 +167,10 @@ export function FindingsTab({
             findingsByRunId={findingsByRunId}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
+            onGoToFinding={handleGoToFinding}
             onDelete={handleDelete}
+            repoFullName={repoFullName}
+            headSha={headSha}
           />
         </div>
       )}
@@ -177,6 +208,8 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            targetFindingId={findingTarget?.findingId ?? null}
+            targetFindingNonce={findingTarget?.n ?? 0}
             severityFilter={severityFilter}
           />
         ))

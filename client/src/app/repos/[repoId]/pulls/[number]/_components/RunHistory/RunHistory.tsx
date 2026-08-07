@@ -18,10 +18,16 @@ const RunFindingsSummary = React.memo(function RunFindingsSummary({
   findings,
   findingsCount,
   blockers,
+  repoFullName,
+  headSha,
+  onGoToFinding,
 }: {
   findings: FindingRecord[];
   findingsCount: number | null;
   blockers: number | null;
+  repoFullName?: string | null;
+  headSha?: string | null;
+  onGoToFinding?: (findingId: string) => void;
 }) {
   const t = useTranslations("prReview");
   const counts: Record<Severity, number> = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
@@ -43,6 +49,9 @@ const RunFindingsSummary = React.memo(function RunFindingsSummary({
       items={findings}
       total={total}
       heading={`${total} finding${total === 1 ? "" : "s"} in this run`}
+      repoFullName={repoFullName}
+      headSha={headSha}
+      onFindingClick={onGoToFinding}
       trigger={nonZero.map((sev) => (
         <SeverityBadge key={sev} severity={sev} count={counts[sev]} compact />
       ))}
@@ -135,7 +144,10 @@ export function RunHistory({
   findingsByRunId,
   onOpenTrace,
   onGoToReview,
+  onGoToFinding,
   onDelete,
+  repoFullName,
+  headSha,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
@@ -145,7 +157,12 @@ export function RunHistory({
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
   onGoToReview?: (runId: string) => void;
+  /** Jump to a specific finding's card below (clicking a finding in the popover). */
+  onGoToFinding?: (findingId: string) => void;
   onDelete?: (runId: string) => void;
+  /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
+  repoFullName?: string | null;
+  headSha?: string | null;
 }) {
   const t = useTranslations("prReview");
   if (runs.length === 0 && commits.length === 0) return null;
@@ -241,6 +258,9 @@ export function RunHistory({
                   findings={findingsByRunId?.get(r.run_id) ?? EMPTY_FINDINGS}
                   findingsCount={r.findings_count}
                   blockers={r.blockers}
+                  repoFullName={repoFullName}
+                  headSha={headSha}
+                  onGoToFinding={onGoToFinding}
                 />
               )}
             </div>

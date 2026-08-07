@@ -13,7 +13,16 @@ import { s } from "../../styles";
 import { FindingsPopover } from "@/components/findings-popover";
 import { SEVERITY_ORDER } from "@/lib/severity";
 
-export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
+export function PRRow({
+  pr,
+  repoId,
+  repoFullName,
+}: {
+  pr: PrMeta;
+  repoId: string;
+  /** owner/repo — used to deep-link a finding's file:line to GitHub. */
+  repoFullName?: string | null;
+}) {
   const t = useTranslations("prReview");
   const router = useRouter();
   const [h, setH] = React.useState(false);
@@ -61,6 +70,9 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           <FindingsPopover
             items={pr.top_findings ?? []}
             total={SEVERITY_ORDER.reduce((sum, sev) => sum + (pr.findings_by_severity?.[sev] ?? 0), 0)}
+            onFindingClick={(id) => router.push(`/repos/${repoId}/pulls/${pr.number}?tab=findings&finding=${id}`)}
+            repoFullName={repoFullName}
+            headSha={pr.head_sha}
             trigger={SEVERITY_ORDER.filter((sev) => (pr.findings_by_severity?.[sev] ?? 0) > 0).map((sev) => (
               <SeverityBadge key={sev} severity={sev} count={pr.findings_by_severity![sev]} compact />
             ))}

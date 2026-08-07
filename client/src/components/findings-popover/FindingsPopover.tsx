@@ -9,9 +9,46 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { SeverityBadge, CategoryTag, ConfidenceNum, type Severity, type Category } from "@devdigest/ui";
 import type { Finding } from "@devdigest/shared";
+import { githubBlobUrl } from "@/lib/github-urls";
 
 function lineLabel(f: Finding): string {
   return f.start_line === f.end_line ? String(f.start_line) : `${f.start_line}-${f.end_line}`;
+}
+
+/** file:line link — same hover affordance as MonoLink (@devdigest/ui): accent
+ *  color + underline on hover, plain otherwise. Not MonoLink itself because
+ *  this needs a smaller font and ellipsis truncation for the tight popup width. */
+function FileLineLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  const [hover, setHover] = React.useState(false);
+  return (
+    <a
+      className="mono"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        fontSize: 12,
+        color: hover ? "var(--accent-text)" : "var(--text-secondary)",
+        textDecoration: hover ? "underline" : "none",
+        textUnderlineOffset: 2,
+        minWidth: 0,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </a>
+  );
 }
 
 const POPUP_WIDTH = 340;
@@ -48,12 +85,22 @@ export function FindingsPopover({
   items,
   total,
   heading,
+  repoFullName,
+  headSha,
+  onFindingClick,
 }: {
   trigger: React.ReactNode;
   items: Finding[];
   total: number;
   /** Overrides the default "{n} finding(s)" header text, e.g. "in this run". */
   heading?: string;
+  /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
+  repoFullName?: string | null;
+  headSha?: string | null;
+  /** Clicking a finding (not its file:line link) jumps to its card in
+   *  "Review runs" below — or, when this popover lives on a different page
+   *  (e.g. the PR list), navigates there first. */
+  onFindingClick?: (findingId: string) => void;
 }) {
   const [place, setPlace] = React.useState<Place | null>(null);
   const anchorRef = React.useRef<HTMLDivElement>(null);
@@ -124,12 +171,27 @@ export function FindingsPopover({
             >
               {heading ?? defaultHeading}
             </div>
-            {items.map((f, i) => (
+            {items.map((f, i) => {
+              const fileHref =
+                repoFullName && headSha
+                  ? githubBlobUrl(repoFullName, headSha, f.file, f.start_line, f.end_line)
+                  : undefined;
+              return (
               <div
                 key={f.id}
+                onClick={
+                  onFindingClick
+                    ? (e) => {
+                        e.stopPropagation();
+                        setPlace(null);
+                        onFindingClick(f.id);
+                      }
+                    : undefined
+                }
                 style={{
                   padding: "8px 0",
                   borderTop: i === 0 ? "none" : "1px solid var(--border)",
+                  cursor: onFindingClick ? "pointer" : undefined,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
@@ -159,19 +221,25 @@ export function FindingsPopover({
                     marginTop: 4,
                   }}
                 >
-                  <span
-                    className="mono"
-                    style={{
-                      fontSize: 12,
-                      color: "var(--text-secondary)",
-                      minWidth: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {f.file}:{lineLabel(f)}
-                  </span>
+                  {fileHref ? (
+                    <FileLineLink href={fileHref}>
+                      {f.file}:{lineLabel(f)}
+                    </FileLineLink>
+                  ) : (
+                    <span
+                      className="mono"
+                      style={{
+                        fontSize: 12,
+                        color: "var(--text-secondary)",
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {f.file}:{lineLabel(f)}
+                    </span>
+                  )}
                   <ConfidenceNum value={f.confidence} />
                 </div>
                 <div
@@ -188,7 +256,8 @@ export function FindingsPopover({
                   {f.rationale}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>,
           document.body,
         )}
