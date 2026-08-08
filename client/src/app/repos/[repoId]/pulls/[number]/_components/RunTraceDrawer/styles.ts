@@ -120,4 +120,35 @@ export const s = {
   tabBody: { paddingTop: 18 } satisfies CSSProperties,
   emptyNote: { fontSize: 13, color: "var(--text-muted)", padding: 16 } satisfies CSSProperties,
   noToolCalls: { fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,
+
+  // ---- FindingsSection ----
+  findingsSectionFileLine: (hover: boolean): CSSProperties => ({
+    display: "block",
+    fontSize: 11.5,
+    color: hover ? "var(--accent-text)" : "var(--text-muted)",
+    textDecoration: hover ? "underline" : "none",
+    textUnderlineOffset: 2,
+    marginBottom: 6,
+  }),
+  findingsSectionList: { display: "flex", flexDirection: "column", gap: 10 } satisfies CSSProperties,
+  findingsSectionCard: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    padding: "10px 12px",
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  findingsSectionHeader: { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 } satisfies CSSProperties,
+  findingsSectionTitle: { fontSize: 13, fontWeight: 600 } satisfies CSSProperties,
+  findingsSectionFileLineFallback: {
+    fontSize: 11.5,
+    color: "var(--text-muted)",
+    marginBottom: 6,
+  } satisfies CSSProperties,
+  findingsSectionRationale: { fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.5 } satisfies CSSProperties,
+  findingsSectionSuggestion: {
+    fontSize: 12.5,
+    color: "var(--text-secondary)",
+    lineHeight: 1.5,
+    marginTop: 6,
+  } satisfies CSSProperties,
 } as const;

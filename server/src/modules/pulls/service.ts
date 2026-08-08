@@ -1,0 +1,252 @@
+import type { FastifyBaseLogger } from 'fastify';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import type { PrMeta, GitHubClient, Finding } from '@devdigest/shared';
+import * as t from '../../db/schema.js';
+import type { Container } from '../../platform/container.js';
+import { NotFoundError } from '../../platform/errors.js';
+import { deriveReviewStatus, rollupSeverities, rankFindingsForPreview, latestPerAgent } from './status.js';
+
+/**
+ * F1 — pulls service. `GET /repos/:id/pulls` outgrew a flat `routes.ts`
+ * handler (GitHub sync-on-read, diff-stat backfill, cost-window batching,
+ * severity rollup/ranking) — this is real business logic per the
+ * onion-architecture skill's graduated-layering rule, so it lives here
+ * instead of inline in the route.
+ */
+export class PullsService {
+  constructor(private container: Container) {}
+
+  async listPulls(workspaceId: string, repoId: string, logger: FastifyBaseLogger): Promise<PrMeta[]> {
+    const { container } = this;
+    const [repo] = await container.db
+      .select()
+      .from(t.repos)
+      .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.id, repoId)));
+    if (!repo) throw new NotFoundError('Repo not found');
+
+    let gh: GitHubClient | null = null;
+    try {
+      gh = await container.github();
+    } catch (err) {
+      logger.warn({ err }, 'GitHub client unavailable (no token / offline); serving persisted PRs');
+    }
+
+    // Local-first: sync from GitHub when a token is configured, but never
+    // fail the read — already-imported/seeded PRs stay viewable offline.
+    if (gh) {
+      try {
+        const pulls = await gh.listPullRequests({ owner: repo.owner, name: repo.name });
+        for (const pr of pulls) {
+          await container.db
+            .insert(t.pullRequests)
+            .values({
+              workspaceId,
+              repoId: repo.id,
+              number: pr.number,
+              title: pr.title,
+              author: pr.author,
+              branch: pr.branch,
+              base: pr.base,
+              headSha: pr.head_sha,
+              additions: pr.additions,
+              deletions: pr.deletions,
+              filesCount: pr.files_count,
+              status: pr.status,
+              openedAt: pr.opened_at ? new Date(pr.opened_at) : null,
+              updatedAt: pr.updated_at ? new Date(pr.updated_at) : null,
+            })
+            .onConflictDoUpdate({
+              target: [t.pullRequests.repoId, t.pullRequests.number],
+              set: {
+                title: pr.title,
+                headSha: pr.head_sha,
+                status: pr.status,
+                updatedAt: pr.updated_at ? new Date(pr.updated_at) : null,
+              },
+            });
+        }
+      } catch (err) {
+        logger.warn({ err }, 'GitHub PR sync skipped (no token / offline); serving persisted PRs');
+      }
+    }
+
+    const rows = await container.db
+      .select()
+      .from(t.pullRequests)
+      .where(eq(t.pullRequests.repoId, repo.id));
+
+    // Diff stats aren't on GitHub's PR-list payload, so freshly-imported PRs
+    // land with zeroed size/diff. Backfill them once from the detail endpoint
+    // so the list shows real S/M/L + ± counts. Capped per request (each backfill
+    // is a detail fetch) — the periodic refetch chips away at any remainder.
+    const BACKFILL_LIMIT = 10;
+    if (gh) {
+      const needStats = rows
+        .filter((r) => r.additions === 0 && r.deletions === 0 && r.filesCount === 0)
+        .slice(0, BACKFILL_LIMIT);
+      for (const r of needStats) {
+        try {
+          const detail = await gh.getPullRequest({ owner: repo.owner, name: repo.name }, r.number);
+          await container.db
+            .update(t.pullRequests)
+            .set({
+              additions: detail.additions,
+              deletions: detail.deletions,
+              filesCount: detail.files_count,
+            })
+            .where(eq(t.pullRequests.id, r.id));
+          r.additions = detail.additions;
+          r.deletions = detail.deletions;
+          r.filesCount = detail.files_count;
+        } catch (err) {
+          logger.warn({ err, number: r.number }, 'PR diff-stat backfill skipped');
+        }
+      }
+    }
+
+    // Latest-review SCORE per PR for the list's score ring. Computed on read
+    // from reviews (no FK denorm); the list is small, so one IN-query + JS
+    // grouping is cheap.
+    const prIds = rows.map((r) => r.id);
+    const latestReviewByPr = new Map<string, { score: number | null }>();
+    // Latest review id per (PR, agent) — the FINDINGS totals below should
+    // reflect each agent's most recent pass, not every historical run (see
+    // `latestPerAgent`'s docstring).
+    let latestReviewIdsByPrAgent = new Set<string>();
+    if (prIds.length > 0) {
+      const reviewRows = await container.db
+        .select({
+          id: t.reviews.id,
+          prId: t.reviews.prId,
+          agentId: t.reviews.agentId,
+          score: t.reviews.score,
+          createdAt: t.reviews.createdAt,
+        })
+        .from(t.reviews)
+        .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
+        .orderBy(desc(t.reviews.createdAt));
+      // Rows are newest-first → first seen per PR is the latest review.
+      for (const rv of reviewRows) {
+        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+      }
+      latestReviewIdsByPrAgent = latestPerAgent(reviewRows);
+    }
+
+    // COST per PR = sum of cost_usd for the LATEST "Run Review" batch (every
+    // agent_runs row created by one click). There's no batch id in the schema
+    // (see `multi_agent_runs`, unwired), but `runReview` creates every row in
+    // that batch synchronously before any LLM call starts, so their ran_at
+    // land within a couple seconds of each other — a wide time window from the
+    // newest run reliably separates "this batch" from any earlier one.
+    const BATCH_WINDOW_MS = 60_000;
+    const latestBatchCostByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({ prId: t.agentRuns.prId, ranAt: t.agentRuns.ranAt, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(inArray(t.agentRuns.prId, prIds))
+        .orderBy(desc(t.agentRuns.ranAt));
+      const runsByPr = new Map<string, { ranAt: Date | null; costUsd: number | null }[]>();
+      for (const r of runRows) {
+        if (!r.prId) continue;
+        const list = runsByPr.get(r.prId) ?? [];
+        list.push({ ranAt: r.ranAt, costUsd: r.costUsd });
+        runsByPr.set(r.prId, list);
+      }
+      for (const [prId, prRuns] of runsByPr) {
+        // prRuns is newest-first (query orders by ranAt desc).
+        const anchor = prRuns[0]!.ranAt?.getTime() ?? null;
+        let sum: number | null = null;
+        for (const run of prRuns) {
+          const ranAtMs = run.ranAt?.getTime() ?? null;
+          if (anchor == null || ranAtMs == null || anchor - ranAtMs > BATCH_WINDOW_MS) break;
+          if (run.costUsd != null) sum = (sum ?? 0) + run.costUsd;
+        }
+        latestBatchCostByPr.set(prId, sum);
+      }
+    }
+
+    // FINDINGS-BY-SEVERITY + top findings per PR, from each agent's LATEST
+    // review only (latestReviewIdsByPrAgent above) — not every historical
+    // run — excluding dismissed findings. One join + JS grouping, same style
+    // as the score/cost aggregations above. `top_findings` caps each PR's
+    // list for the FINDINGS column's hover preview.
+    const TOP_FINDINGS_LIMIT = 5;
+    const findingsBySeverityByPr = new Map<string, Record<'CRITICAL' | 'WARNING' | 'SUGGESTION', number>>();
+    const topFindingsByPr = new Map<string, PrMeta['top_findings']>();
+    if (latestReviewIdsByPrAgent.size > 0) {
+      const findingRows = await container.db
+        .select({
+          prId: t.reviews.prId,
+          id: t.findings.id,
+          severity: t.findings.severity,
+          category: t.findings.category,
+          title: t.findings.title,
+          file: t.findings.file,
+          startLine: t.findings.startLine,
+          endLine: t.findings.endLine,
+          rationale: t.findings.rationale,
+          confidence: t.findings.confidence,
+        })
+        .from(t.findings)
+        .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
+        .where(and(inArray(t.reviews.id, [...latestReviewIdsByPrAgent]), isNull(t.findings.dismissedAt)));
+      const allFindingsByPr = new Map<string, NonNullable<PrMeta['top_findings']>>();
+      for (const f of findingRows) {
+        if (f.severity !== 'CRITICAL' && f.severity !== 'WARNING' && f.severity !== 'SUGGESTION') continue;
+        const list = allFindingsByPr.get(f.prId) ?? [];
+        list.push({
+          id: f.id,
+          severity: f.severity,
+          category: f.category as Finding['category'],
+          title: f.title,
+          file: f.file,
+          start_line: f.startLine,
+          end_line: f.endLine,
+          rationale: f.rationale,
+          confidence: f.confidence,
+        });
+        allFindingsByPr.set(f.prId, list);
+      }
+      for (const [prId, list] of allFindingsByPr) {
+        const rolled = rollupSeverities(list);
+        findingsBySeverityByPr.set(prId, {
+          CRITICAL: rolled.critical,
+          WARNING: rolled.warning,
+          SUGGESTION: rolled.suggestion,
+        });
+        topFindingsByPr.set(prId, rankFindingsForPreview(list, TOP_FINDINGS_LIMIT));
+      }
+    }
+
+    const now = Date.now();
+    return rows.map((r) => {
+      const review = latestReviewByPr.get(r.id);
+      return {
+        id: r.id,
+        number: r.number,
+        title: r.title,
+        author: r.author,
+        branch: r.branch,
+        base: r.base,
+        head_sha: r.headSha,
+        additions: r.additions,
+        deletions: r.deletions,
+        files_count: r.filesCount,
+        status: deriveReviewStatus({
+          ghStatus: r.status,
+          lastReviewedSha: r.lastReviewedSha,
+          headSha: r.headSha,
+          updatedAt: r.updatedAt,
+          now,
+        }),
+        opened_at: r.openedAt?.toISOString() ?? null,
+        updated_at: r.updatedAt?.toISOString() ?? null,
+        score: review ? review.score : null,
+        cost_usd: latestBatchCostByPr.get(r.id) ?? null,
+        findings_by_severity: findingsBySeverityByPr.get(r.id) ?? null,
+        top_findings: topFindingsByPr.get(r.id) ?? null,
+      };
+    });
+  }
+}

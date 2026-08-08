@@ -11,9 +11,9 @@ import type {
   PrReviewComment,
   ReviewRecord,
   ReviewRunResponse,
-  RunEvent,
   RunSummary,
 } from "@devdigest/shared";
+import { RunEvent } from "@devdigest/shared";
 
 // ---- Active (in-flight) runs — server-side source of truth ----
 export interface ActiveRun {
@@ -180,16 +180,23 @@ export function useRunEvents(runIds: string[]) {
     for (const runId of runIds) {
       const es = new EventSource(`${API_BASE}/runs/${runId}/events`);
       const onMsg = (ev: MessageEvent) => {
+        let json: unknown;
         try {
-          const parsed = JSON.parse(ev.data) as RunEvent;
-          setEvents((prev) => [...prev, parsed]);
-          // Runtime agent failures arrive as SSE `error` events (not as a
-          // mutation/query error), so the global error toast never sees them —
-          // surface them here so the user gets a notification without a reload.
-          if (parsed.kind === "error" && parsed.msg) notify.error(parsed.msg);
+          json = JSON.parse(ev.data);
         } catch {
-          /* ignore non-JSON keepalive frames (and dataless native error events) */
+          return; // non-JSON keepalive frame / dataless native error event
         }
+        const result = RunEvent.safeParse(json);
+        if (!result.success) {
+          console.warn("useRunEvents: dropped malformed SSE event", result.error);
+          return;
+        }
+        const parsed = result.data;
+        setEvents((prev) => [...prev, parsed]);
+        // Runtime agent failures arrive as SSE `error` events (not as a
+        // mutation/query error), so the global error toast never sees them —
+        // surface them here so the user gets a notification without a reload.
+        if (parsed.kind === "error" && parsed.msg) notify.error(parsed.msg);
       };
       // The server tags events with kind as the SSE `event:` name AND emits them
       // as default messages too in some clients — listen broadly.

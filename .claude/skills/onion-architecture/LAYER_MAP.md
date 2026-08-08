@@ -28,7 +28,7 @@ graduated-layering rule.
 | `reviews` | Full split | routes, service, repository (+ `repository/` sub-dir), run-executor, diff-loader, findings, constants, helpers | Core review-run orchestration — the most business-logic-heavy module |
 | `repo-intel` | Full split | routes, service, repository, `pipeline/`, constants, types | Coordinates multiple data sources (graph, embeddings, ast-grep) |
 | `repos` | Full split | routes, service, repository, constants, helpers | Repo lifecycle (add/remove/clone) has real coordination logic |
-| `pulls` | Flat today, graduating | routes, status (pure helpers) — `service.ts` planned | `GET /repos/:id/pulls` grew real business logic (GitHub sync-on-read, diff-stat backfill, cost-window batching, severity rollup) — crossed the graduated-layering line; extraction into `service.ts` is a tracked follow-up, not yet landed |
+| `pulls` | Full split | routes, service, status (pure helpers) | `GET /repos/:id/pulls` grew real business logic (GitHub sync-on-read, diff-stat backfill, cost-window batching, severity rollup) — graduated from flat per the skill's explicit carve-out; extracted into `service.ts` |
 | `settings` | Flat | routes, constants, feature-models, helpers | Read/write config + BYO-key test-connection; no cross-source coordination |
 | `polling` | Flat | routes only | Pure trigger-a-sync endpoint |
 | `workspace` | Flat | routes only | Pure CRUD |

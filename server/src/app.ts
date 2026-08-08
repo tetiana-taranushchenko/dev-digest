@@ -52,6 +52,13 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
         ? false
         : {
             level: config.logLevel,
+            // Defense-in-depth: nothing currently logs these, but a future
+            // custom serializer or an SDK error embedding request context
+            // must not leak a token/BYO-key into the logs.
+            redact: {
+              paths: ['req.headers.authorization', 'req.headers.cookie', 'req.body.key'],
+              censor: '[Redacted]',
+            },
             transport:
               config.nodeEnv === 'development'
                 ? { target: 'pino-pretty', options: { colorize: true } }
