@@ -4,6 +4,7 @@ import { ValidationError } from '../../platform/errors.js';
 import { UNTRUSTED_SOURCES } from './constants.js';
 import { SkillsRepository } from './repository.js';
 import { changeSummary, toSkillDto } from './helpers.js';
+import { scanForInjectionRisk } from './injection-scan.js';
 import type { SkillVersionDto } from './helpers.js';
 import { SkillStatsRepository, thirtyDaysAgo } from './stats.repo.js';
 import type { CompactSkillStats, SkillStats } from './contracts.js';
@@ -159,6 +160,10 @@ export class SkillsService {
         'Untrusted-source skills must be vetted before they can be enabled',
       );
     }
+    // Injection risk is a stronger, source-independent override: a flagged
+    // body is silently saved disabled regardless of what was requested — no
+    // error, matching "automatically blocked" (not "rejected").
+    const risky = scanForInjectionRisk(input.body).risky;
     const row = await this.repo.insert({
       workspaceId,
       name: input.name,
@@ -166,7 +171,7 @@ export class SkillsService {
       type: input.type,
       source: input.source,
       body: input.body,
-      enabled: untrusted ? false : (input.enabled ?? true),
+      enabled: risky ? false : untrusted ? false : (input.enabled ?? true),
       evidenceFiles: input.evidence_files,
     });
     return toSkillDto(row);
@@ -186,13 +191,22 @@ export class SkillsService {
       throw new ValidationError('This skill is from an untrusted source — vet it before enabling');
     }
 
+    // Re-scan the RESULTING body (patched or, if body isn't in this patch,
+    // the existing one) against the RESULTING requested enabled state (patched
+    // or existing) — this also catches editing an already-enabled, previously
+    // safe skill's body into something risky without touching `enabled` in
+    // the same request. Silently forces disabled; never throws.
+    const resultingBody = patch.body ?? existing.body;
+    const resultingEnabled = patch.enabled ?? existing.enabled;
+    const risky = resultingEnabled && scanForInjectionRisk(resultingBody).risky;
+
     const row = await this.repo.update(workspaceId, id, {
       ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.description !== undefined ? { description: patch.description } : {}),
       ...(patch.type !== undefined ? { type: patch.type } : {}),
       ...(patch.source !== undefined ? { source: patch.source } : {}),
       ...(patch.body !== undefined ? { body: patch.body } : {}),
-      ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+      ...(patch.enabled !== undefined || risky ? { enabled: risky ? false : patch.enabled! } : {}),
       ...(patch.evidence_files !== undefined ? { evidenceFiles: patch.evidence_files } : {}),
     });
     return row ? toSkillDto(row) : undefined;

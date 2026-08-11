@@ -20,6 +20,8 @@ const PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
   { pattern: /\bnew instructions\s*:/i, reason: 'attempts to inject new instructions' },
   { pattern: /\breveal (your |the )?(system )?prompt\b/i, reason: 'attempts to exfiltrate the system prompt' },
   { pattern: /\bbypass (your |all )?(safety|guidelines|restrictions|filters)\b/i, reason: 'attempts to bypass safety guidelines' },
+  { pattern: /\boverride (all |your )?(safety|guidelines|restrictions)\b/i, reason: 'attempts to override safety guidelines' },
+  { pattern: /^\s*SYSTEM\s*:/im, reason: 'impersonates a system-level instruction' },
   { pattern: /\bjailbreak\b/i, reason: 'contains jailbreak phrasing' },
   { pattern: /\bexfiltrate\b/i, reason: 'references data exfiltration' },
   { pattern: /\bDAN mode\b/i, reason: 'contains a known jailbreak persona reference' },

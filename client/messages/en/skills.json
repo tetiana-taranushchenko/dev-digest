@@ -33,7 +33,7 @@
     }
   },
   "drawer": {
-    "title": "Add a skill",
+    "title": "Add Skill",
     "subtitle": "Create it directly, import from a file, a URL, or search vetted community skills",
     "tabs": {
       "create": "Create",
@@ -92,6 +92,9 @@
   "listItem": {
     "needsVetting": "needs vetting",
     "vettingTitle": "Untrusted source — vet before enabling",
+    "injectionDetected": "Injection detected",
+    "injectionTitle": "This skill's body contains prompt-injection patterns and is blocked",
+    "blockedMeta": "{source} · v{version} · blocked — injection detected",
     "type": {
       "rubric": "rubric",
       "convention": "convention",
@@ -113,6 +116,8 @@
     "save": "Save",
     "edit": "Edit",
     "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
+    "injectionBannerTitle": "🚫 INJECTION DETECTED — DO NOT ENABLE",
+    "injectionBannerBody": "This skill contains prompt injection patterns. It has been automatically blocked.",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"

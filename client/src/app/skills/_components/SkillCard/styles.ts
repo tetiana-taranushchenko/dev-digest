@@ -2,13 +2,13 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for SkillCard (mirrors AgentCard's styles.ts). */
 export const s = {
-  card: (active: boolean, enabled: boolean): CSSProperties => ({
+  card: (active: boolean, enabled: boolean, flagged?: boolean): CSSProperties => ({
     padding: 14,
     borderRadius: 8,
     cursor: "pointer",
-    border: "1px solid " + (active ? "var(--border-strong)" : "var(--border)"),
-    background: active ? "var(--bg-hover)" : "var(--bg-elevated)",
-    opacity: enabled ? 1 : 0.6,
+    border: "1px solid " + (flagged ? "var(--crit)" : active ? "var(--border-strong)" : "var(--border)"),
+    background: flagged ? "var(--crit-bg)" : active ? "var(--bg-hover)" : "var(--bg-elevated)",
+    opacity: flagged ? 1 : enabled ? 1 : 0.6,
     marginBottom: 10,
   }),
   headerRow: { display: "flex", alignItems: "center", gap: 10 } satisfies CSSProperties,

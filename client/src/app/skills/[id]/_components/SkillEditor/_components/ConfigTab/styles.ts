@@ -38,6 +38,17 @@ export const s = {
   } satisfies CSSProperties,
   vettingText: { fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 } satisfies CSSProperties,
   vettingAck: { display: "flex", alignItems: "center", gap: 8, fontSize: 13 } satisfies CSSProperties,
+  injectionBanner: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    padding: "12px 14px",
+    borderRadius: 8,
+    border: "1px solid var(--crit)",
+    background: "var(--crit-bg)",
+    marginBottom: 20,
+  } satisfies CSSProperties,
+  injectionBannerTitle: { fontSize: 13, fontWeight: 700, color: "var(--crit)" } satisfies CSSProperties,
   actions: { display: "flex", gap: 10, marginTop: 16, alignItems: "center" } satisfies CSSProperties,
   savedNote: { alignSelf: "center", fontSize: 13, color: "var(--ok)" } satisfies CSSProperties,
 } as const;

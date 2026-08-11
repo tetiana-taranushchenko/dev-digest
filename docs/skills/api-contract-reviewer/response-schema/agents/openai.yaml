@@ -1,0 +1,4 @@
+interface:
+  display_name: "Response Schema"
+  short_description: "Check response shape compatibility"
+  default_prompt: "Use $response-schema to review response schema compatibility in this PR."

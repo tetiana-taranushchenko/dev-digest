@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deprecation Policy"
+  short_description: "Require safe public API deprecation"
+  default_prompt: "Use $deprecation-policy to review whether deprecated APIs are removed safely."

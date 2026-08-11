@@ -24,6 +24,7 @@ import { s } from "./styles";
     ordered set of linked skill ids. */
 export function SkillsTab({ agent }: { agent: Agent }) {
   const t = useTranslations("agents");
+  const ts = useTranslations("skills");
   const toast = useToast();
   const { data: skills } = useSkills();
   const { data: links } = useAgentSkills(agent.id);
@@ -118,14 +119,27 @@ export function SkillsTab({ agent }: { agent: Agent }) {
 
       {visibleUnlinked.length > 0 && (
         <div style={{ ...s.list, marginTop: visibleLinked.length > 0 ? 14 : 0 }}>
-          {visibleUnlinked.map((sk) => (
-            <div key={sk.id} style={s.row}>
-              <span style={s.handleSpacer} />
-              <Checkbox checked={false} onChange={() => link(sk.id)} />
-              <span style={s.name}>{sk.name}</span>
-              <Badge>{sk.type}</Badge>
-            </div>
-          ))}
+          {visibleUnlinked.map((sk) =>
+            sk.injection_flagged ? (
+              <div key={sk.id} style={s.rowFlagged} title={sk.injection_reason ?? undefined}>
+                <span style={s.handleSpacer} />
+                <div style={{ pointerEvents: "none", opacity: 0.5 }}>
+                  <Checkbox checked={false} onChange={() => {}} />
+                </div>
+                <span style={s.name}>{sk.name}</span>
+                <Badge color="var(--crit)" bg="var(--crit-bg)" icon="AlertOctagon">
+                  {ts("listItem.injectionDetected")}
+                </Badge>
+              </div>
+            ) : (
+              <div key={sk.id} style={s.row}>
+                <span style={s.handleSpacer} />
+                <Checkbox checked={false} onChange={() => link(sk.id)} />
+                <span style={s.name}>{sk.name}</span>
+                <Badge>{sk.type}</Badge>
+              </div>
+            ),
+          )}
         </div>
       )}
 
@@ -137,21 +151,32 @@ export function SkillsTab({ agent }: { agent: Agent }) {
 }
 
 function SortableSkillRow({ skill, onUncheck }: { skill: Skill; onUncheck: () => void }) {
+  const ts = useTranslations("skills");
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: skill.id });
+  const flagged = skill.injection_flagged;
   const style: React.CSSProperties = {
-    ...s.row,
+    ...(flagged ? s.rowFlagged : s.row),
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     transition: transition ?? undefined,
     opacity: isDragging ? 0.6 : 1,
   };
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} title={flagged ? (skill.injection_reason ?? undefined) : undefined}>
       <button type="button" aria-label="Drag to reorder" style={s.handle} {...attributes} {...listeners}>
         <Icon.Menu size={14} />
       </button>
+      {/* Removal (unlink) stays allowed even while flagged — that's the safe
+          direction; only newly LINKING a flagged skill is blocked (see the
+          unlinked-section row below). */}
       <Checkbox checked onChange={onUncheck} />
       <span style={s.name}>{skill.name}</span>
-      <Badge>{skill.type}</Badge>
+      {flagged ? (
+        <Badge color="var(--crit)" bg="var(--crit-bg)" icon="AlertOctagon">
+          {ts("listItem.injectionDetected")}
+        </Badge>
+      ) : (
+        <Badge>{skill.type}</Badge>
+      )}
     </div>
   );
 }

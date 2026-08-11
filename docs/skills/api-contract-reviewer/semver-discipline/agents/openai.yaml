@@ -1,0 +1,4 @@
+interface:
+  display_name: "Semver Discipline"
+  short_description: "Map API changes to semantic versions"
+  default_prompt: "Use $semver-discipline to determine the required semantic version bump."

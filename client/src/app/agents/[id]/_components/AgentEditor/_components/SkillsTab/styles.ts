@@ -25,6 +25,15 @@ export const s = {
     border: "1px solid var(--border)",
     background: "var(--bg-elevated)",
   } satisfies CSSProperties,
+  rowFlagged: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "9px 12px",
+    borderRadius: 7,
+    border: "1px solid var(--crit)",
+    background: "var(--crit-bg)",
+  } satisfies CSSProperties,
   handle: {
     display: "inline-flex",
     alignItems: "center",

@@ -43,6 +43,9 @@ export function ConfigTab({ skill }: { skill: Skill }) {
   const isUntrusted = (UNTRUSTED_SOURCES as readonly string[]).includes(skill.source);
   // Only relevant while the skill is currently disabled — once enabled, no gate.
   const needsVetting = isUntrusted && !skill.enabled;
+  // Reflects the persisted skill (server re-scans on every save) — clears on
+  // the next fetch once the body no longer matches, no separate un-flag step.
+  const flagged = skill.injection_flagged;
   const bodyChanged = body !== skill.body;
   const tokenEstimate = Math.ceil(body.length / 4);
   const filename = `${slugify(name)}.md`;
@@ -67,15 +70,23 @@ export function ConfigTab({ skill }: { skill: Skill }) {
 
   return (
     <div style={s.wrap}>
+      {flagged && (
+        <div style={s.injectionBanner}>
+          <span style={s.injectionBannerTitle}>{t("preview.injectionBannerTitle")}</span>
+          <span>{skill.injection_reason ? `${t("preview.injectionBannerBody")} (${skill.injection_reason})` : t("preview.injectionBannerBody")}</span>
+        </div>
+      )}
       <div style={s.header}>
         <h2 style={s.h2}>{t("config.title")}</h2>
         <label style={s.enabledLabel}>
           {t("preview.enabled")}
-          <Toggle on={enabled} onChange={setEnabled} size={16} />
+          <div style={flagged ? { pointerEvents: "none", opacity: 0.5 } : undefined}>
+            <Toggle on={flagged ? false : enabled} onChange={flagged ? () => {} : setEnabled} size={16} />
+          </div>
         </label>
       </div>
 
-      {needsVetting && enabled && (
+      {!flagged && needsVetting && enabled && (
         <div style={s.vettingBox}>
           <div style={s.vettingText}>{t("preview.untrustedNotice")}</div>
           <label style={s.vettingAck}>

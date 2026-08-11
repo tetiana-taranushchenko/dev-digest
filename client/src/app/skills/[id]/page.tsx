@@ -97,6 +97,7 @@ export default function SkillEditorPage() {
                 key={sk.id}
                 skill={sk}
                 active={sk.id === id}
+                showDelete={false}
                 onClick={() => router.push(`/skills/${sk.id}?tab=${tab}`)}
               />
             ))}
@@ -118,7 +119,15 @@ export default function SkillEditorPage() {
               <Badge color="var(--text-secondary)" mono>
                 {t("preview.version", { version: skill.version })}
               </Badge>
-              {!skill.enabled && <Badge color="var(--text-muted)">{t("preview.disabled")}</Badge>}
+              {skill.injection_flagged ? (
+                <span title={skill.injection_reason ?? t("listItem.injectionTitle")}>
+                  <Badge color="var(--crit)" bg="var(--crit-bg)" icon="AlertOctagon">
+                    {t("listItem.injectionDetected")}
+                  </Badge>
+                </span>
+              ) : (
+                !skill.enabled && <Badge color="var(--text-muted)">{t("preview.disabled")}</Badge>
+              )}
             </div>
             <SkillEditor skill={skill} tab={tab} onTab={setTab} />
           </div>

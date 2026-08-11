@@ -1,5 +1,6 @@
 import type { Skill, SkillSource, SkillType } from '@devdigest/shared';
 import type { SkillRow } from '../../db/rows.js';
+import { scanForInjectionRisk } from './injection-scan.js';
 
 /**
  * Pure helpers for the skills module — DB row ⇄ DTO mapping and the
@@ -9,6 +10,7 @@ import type { SkillRow } from '../../db/rows.js';
 
 /** Map a persisted skill row to the public `Skill` DTO. */
 export function toSkillDto(row: SkillRow): Skill {
+  const scan = scanForInjectionRisk(row.body);
   return {
     id: row.id,
     name: row.name,
@@ -19,6 +21,8 @@ export function toSkillDto(row: SkillRow): Skill {
     enabled: row.enabled,
     version: row.version,
     evidence_files: row.evidenceFiles ?? null,
+    injection_flagged: scan.risky,
+    injection_reason: scan.reason ?? null,
   };
 }
 

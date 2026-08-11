@@ -25,11 +25,16 @@ export function SkillCard({
   skill,
   active,
   stats,
+  showDelete = true,
   onClick,
 }: {
   skill: Skill;
   active?: boolean;
   stats?: SkillCardStats;
+  /** Hide the delete button — used for the compact sidebar list inside the
+   *  Skill Editor page, where deleting isn't the point of that view; the
+   *  main `/skills` grid keeps it (default true). */
+  showDelete?: boolean;
   onClick?: () => void;
 }) {
   const t = useTranslations("skills");
@@ -37,6 +42,7 @@ export function SkillCard({
   const del = useDeleteSkill();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const vetting = needsVetting(skill);
+  const flagged = skill.injection_flagged;
   const typeColor = skillTypeColor(skill.type);
 
   const handleToggle = (enabled: boolean) => {
@@ -49,35 +55,42 @@ export function SkillCard({
     update.mutate({ id: skill.id, patch: { enabled } });
   };
 
+  const deleteButton = (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        setConfirmDelete(true);
+      }}
+      disabled={del.isPending}
+      title={t("card.delete")}
+      aria-label={t("card.delete")}
+      style={{
+        marginLeft: "auto",
+        background: "none",
+        border: "none",
+        cursor: del.isPending ? "not-allowed" : "pointer",
+        color: "var(--text-muted)",
+        display: "inline-flex",
+        padding: 4,
+      }}
+    >
+      <Icon.Trash size={14} style={del.isPending ? { animation: "ddspin 1s linear infinite" } : undefined} />
+    </button>
+  );
+
   return (
-    <div onClick={onClick} style={s.card(!!active, skill.enabled)}>
+    <div onClick={onClick} style={s.card(!!active, skill.enabled, flagged)}>
       <div style={s.headerRow}>
         <div style={s.iconBox}>
           <Icon.Sparkles size={15} />
         </div>
         <span style={s.name}>{skill.name}</span>
-        <div onClick={(e) => e.stopPropagation()}>
-          <Toggle on={skill.enabled} onChange={handleToggle} size={14} />
-        </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setConfirmDelete(true);
-          }}
-          disabled={del.isPending}
-          title={t("card.delete")}
-          aria-label={t("card.delete")}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: del.isPending ? "not-allowed" : "pointer",
-            color: "var(--text-muted)",
-            display: "inline-flex",
-            padding: 4,
-          }}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={flagged ? { pointerEvents: "none", opacity: 0.5 } : undefined}
         >
-          <Icon.Trash size={14} style={del.isPending ? { animation: "ddspin 1s linear infinite" } : undefined} />
-        </button>
+          <Toggle on={flagged ? false : skill.enabled} onChange={flagged ? () => {} : handleToggle} size={14} />
+        </div>
       </div>
       {confirmDelete && (
         <div onClick={(e) => e.stopPropagation()}>
@@ -95,21 +108,36 @@ export function SkillCard({
         </div>
       )}
       <div style={s.description}>{skill.description || t("card.noDescription")}</div>
-      <div style={s.metaRow}>
-        <Badge color={typeColor} bg={typeColor + "1a"}>
-          {t(`listItem.type.${skill.type}`)}
-        </Badge>
-        <Badge color="var(--text-secondary)" icon={sourceIcon(skill.source)}>
-          {t(`listItem.source.${skill.source}`)}
-        </Badge>
-        {vetting && (
-          <span title={t("listItem.vettingTitle")}>
-            <Badge color="var(--warn)" bg="var(--warn-bg)" icon="AlertTriangle">
-              {t("listItem.needsVetting")}
+      {flagged ? (
+        <div style={s.metaRow}>
+          <span title={skill.injection_reason ?? t("listItem.injectionTitle")}>
+            <Badge color="var(--crit)" bg="var(--crit-bg)" icon="AlertOctagon">
+              {t("listItem.injectionDetected")}
             </Badge>
           </span>
-        )}
-      </div>
+          <span style={{ fontSize: 12, color: "var(--crit)" }}>
+            {t("listItem.blockedMeta", { source: t(`listItem.source.${skill.source}`), version: skill.version })}
+          </span>
+          {showDelete && deleteButton}
+        </div>
+      ) : (
+        <div style={s.metaRow}>
+          <Badge color={typeColor} bg={typeColor + "1a"}>
+            {t(`listItem.type.${skill.type}`)}
+          </Badge>
+          <Badge color="var(--text-secondary)" icon={sourceIcon(skill.source)}>
+            {t(`listItem.source.${skill.source}`)}
+          </Badge>
+          {vetting && (
+            <span title={t("listItem.vettingTitle")}>
+              <Badge color="var(--warn)" bg="var(--warn-bg)" icon="AlertTriangle">
+                {t("listItem.needsVetting")}
+              </Badge>
+            </span>
+          )}
+          {showDelete && deleteButton}
+        </div>
+      )}
       {stats && (
         <div style={s.statsLine}>
           {t("card.stats", { agents: stats.agents, pull: stats.pullPct, accept: stats.acceptPct })}

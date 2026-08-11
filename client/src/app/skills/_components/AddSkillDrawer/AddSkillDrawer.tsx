@@ -10,7 +10,7 @@ import { CommunityTab } from "./_components/CommunityTab";
 
 export type AddSkillDrawerTab = "create" | "file" | "url" | "community";
 
-/** "Add skill" — a centered MODAL with 4 tabs: Create / From file / Import
+/** "Add Skill" — a centered MODAL with 4 tabs: Create / From file / Import
  *  from URL / Community. Opened via the "+ Add Skill" dropdown menu (4 items,
  *  one per tab) on both the Skills list and the Skill Editor page — the menu
  *  item just picks which tab the modal opens on; all 4 stay reachable inside
