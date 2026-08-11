@@ -7,9 +7,11 @@
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
+      "create": "Create from scratch",
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
-      "community": "Search community skills…"
+      "community": "Search community skills…",
+      "comingSoon": "Coming soon"
     },
     "empty": {
       "title": "No skills yet",
@@ -32,18 +34,32 @@
   },
   "drawer": {
     "title": "Add a skill",
-    "subtitle": "Import from a file, a URL, or search vetted community skills",
+    "subtitle": "Create it directly, import from a file, a URL, or search vetted community skills",
     "tabs": {
+      "create": "Create",
       "file": "From file",
-      "url": "From URL",
+      "url": "Import from URL",
       "community": "Community"
     },
     "importFailed": "Import failed"
+  },
+  "create": {
+    "title": "Create a skill",
+    "namePlaceholder": "pr-quality-rubric",
+    "descriptionPlaceholder": "What this skill checks…",
+    "bodyLabel": "Body (Markdown)",
+    "bodyPlaceholder": "# Rule\nDescribe the rule…",
+    "submit": "Create skill",
+    "submitting": "Creating…",
+    "success": "Created \"{name}\"."
   },
   "file": {
     "nameLabel": "Skill name",
     "nameHint": "Optional — derived from the first heading if blank.",
     "namePlaceholder": "pr-quality-rubric",
+    "fileLabel": "File (.md or .zip)",
+    "chooseFile": "Choose file",
+    "noFileChosen": "No file chosen",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Pasted content is wrapped as untrusted data — never executed as instructions.",
     "bodyPlaceholder": "# Rule\nDescribe the rule…",
@@ -52,9 +68,11 @@
     "success": "Imported \"{name}\" (stored as untrusted data)."
   },
   "url": {
-    "label": "Skill URL",
+    "label": "URL (https:// only)",
     "hint": "Fetched server-side, stored as untrusted, and left disabled until vetted.",
-    "placeholder": "https://example.com/skills/security.md",
+    "placeholder": "https://raw.githubusercontent.com/org/repo/main/skill.md",
+    "nameLabel": "Skill name",
+    "namePlaceholder": "my-skill",
     "fetching": "Fetching…",
     "import": "Import from URL",
     "success": "Imported \"{name}\". Disabled until you vet + enable it."
@@ -88,6 +106,7 @@
     }
   },
   "preview": {
+    "caption": "Rendered as the reviewing agent receives it.",
     "untrustedBadge": "untrusted source",
     "enabled": "Enabled",
     "disabled": "Disabled",
@@ -97,5 +116,59 @@
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"
+  },
+  "card": {
+    "noDescription": "No description.",
+    "stats": "{agents} agents · {pull}% pull · {accept}% accept",
+    "delete": "Delete skill",
+    "deleteTitle": "Delete skill?",
+    "deleteConfirm": "Delete skill \"{name}\"? This cannot be undone."
+  },
+  "stats": {
+    "loadError": "Could not load stats for this skill.",
+    "framingNote": "Findings from agents that have this skill attached — not findings this skill caused.",
+    "usedBy": "Used By",
+    "pullFrequency": "Pull Frequency",
+    "findings30d": "Findings (30d)",
+    "acceptRate": "Accept Rate",
+    "acceptRateSub": "{accepted} accepted, {dismissed} dismissed",
+    "agentsUsing": "Agents using this skill",
+    "open": "Open",
+    "noAgents": "No agents currently use this skill.",
+    "findingsByCategory": "Findings by Category",
+    "noFindings": "No findings in the last 30 days.",
+    "costDisclaimer": "Cost is estimated by splitting each run's total cost evenly across its findings."
+  },
+  "editor": {
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "stats": "Stats",
+      "versions": "Versions"
+    }
+  },
+  "config": {
+    "title": "Configuration",
+    "name": "Name",
+    "description": "Description",
+    "descriptionHint": "This is the skill's interface — write it as a direct instruction (e.g. \"Flag any X\"), since agents read it to decide what the skill covers.",
+    "type": "Type",
+    "unsaved": "unsaved",
+    "tokenEstimate": "~{count} tokens",
+    "saving": "Saving…",
+    "savedToast": "Saved (v{version})",
+    "saved": "Saved (v{version})",
+    "vettingAck": "I've reviewed this skill's content and trust it."
+  },
+  "versions": {
+    "title": "Version history",
+    "count": "{count} versions",
+    "current": "Current",
+    "diff": "Diff",
+    "restore": "Restore",
+    "restoreConfirm": "Restore v{version}? This creates a new top version with v{version}'s body.",
+    "restored": "Restored as v{version}",
+    "diffTitle": "Diff vs. v{version}",
+    "footerNote": "Every save snapshots the body so eval runs stay reproducible against the exact text they scored."
   }
 }

@@ -10,6 +10,8 @@ import type {
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { scanForInjectionRisk } from '../skills/injection-scan.js';
+import { ValidationError } from '../../platform/errors.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -144,6 +146,11 @@ export class AgentsService {
   /**
    * Set / reorder the agent's linked skills. If `skillIds` is provided, replaces
    * the whole set in that order. Returns the resulting ordered links.
+   *
+   * Every skill in the requested set is re-scanned for injection/self-declared-
+   * danger content on every call (not just when newly added) — a skill's body
+   * can change after it was linked, so a stale "safe at link time" check
+   * wouldn't catch that. Throws before writing anything if any skill is risky.
    */
   async setSkills(
     workspaceId: string,
@@ -152,6 +159,7 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    await this.assertSkillsSafe(workspaceId, skillIds);
     await this.repo.setSkills(agentId, skillIds);
     return this.skillLinks(agentId);
   }
@@ -165,10 +173,29 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    await this.assertSkillsSafe(workspaceId, [skillId]);
     const existing = await this.repo.linkedSkills(agentId);
     const resolvedOrder = order ?? existing.length;
     await this.repo.linkSkill(agentId, skillId, resolvedOrder);
     return this.skillLinks(agentId);
+  }
+
+  /**
+   * Block attaching a skill whose body looks like a prompt-injection attempt
+   * or plainly declares itself malicious/dangerous. Unknown skill ids are
+   * left for the normal FK/not-found flow to handle, not this check.
+   */
+  private async assertSkillsSafe(workspaceId: string, skillIds: string[]): Promise<void> {
+    for (const skillId of skillIds) {
+      const skill = await this.container.skillsRepo.getById(workspaceId, skillId);
+      if (!skill) continue;
+      const scan = scanForInjectionRisk(skill.body);
+      if (scan.risky) {
+        throw new ValidationError(
+          `Cannot attach "${skill.name}" — its body looks unsafe (${scan.reason}). Edit the skill to remove the risky content, then try again.`,
+        );
+      }
+    }
   }
 
   /**

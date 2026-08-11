@@ -6,7 +6,43 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+
+const TEST_COVERAGE_RUBRIC_BODY = `# Test Coverage Rubric
+
+Evaluate the diff's tests against the source change they cover.
+
+## Branch coverage
+- Every new if/else, switch case, catch block, and early return must have an
+  assertion exercising it — not just the happy path.
+
+## Edge cases
+- Empty/null/undefined input, boundary values (0, -1, max), and the empty-collection
+  case for any new function that accepts a collection.
+- The specific error path a new \`throw\`/\`reject\` can take.
+
+Flag a finding only when a genuinely uncovered branch or edge case exists — not
+for hypothetical future inputs outside the diff's scope.`;
+
+const MOCKING_DISCIPLINE_BODY = `# Mocking Discipline
+
+Flag tests that mock the exact unit under test, or mock a collaborator so heavily
+that the test only proves the mock was wired correctly rather than that the real
+behaviour works. A previously-real dependency newly mocked without justification
+is a signal an existing test's coverage was weakened, not strengthened.`;
+
+const API_CONTRACT_GUARD_BODY = `# API Contract Guard
+
+Flag any diff that changes a route's request/response contract in a way that
+breaks existing callers:
+- A renamed, removed, or retyped response field.
+- A changed status code for an existing success/error path.
+- A request field that becomes required where it was previously optional.
+- A changed URL path or HTTP method for an existing route.
+
+Additive changes (a new optional field, a new route) are NOT breaking — do not
+flag those. Cite the exact before/after shape when flagging a breaking change.`;
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -18,11 +54,14 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * with a few findings, and the four built-in agents (General + Security +
+ * Performance + Test Quality), all on the default openrouter/deepseek-v4-flash
+ * provider+model — plus 3 manual skills (2 bound to Test Quality Reviewer, 1 to
+ * General Reviewer). A 3rd Test Quality skill is deliberately left for manual
+ * import via the Skills UI (see the skills-seeding block below).
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * Course lessons populate the remaining tables (conventions, memory, eval, …)
+ * once their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -211,6 +250,17 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description: 'Checks test quality: uncovered branches, missed edge cases, excessive mocking, flaky patterns.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -218,6 +268,87 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- Skills feature: 2 manual skills for Test Quality Reviewer + 1 for
+  // General Reviewer. Deliberately NOT seeding a 3rd Test Quality skill here —
+  // the Skills feature's "at least one skill via import" requirement is meant
+  // to be exercised by hand: import "test-flakiness-heuristics" from the
+  // Community catalog (server/src/modules/skills/community-catalog.ts) via the
+  // Skills UI, vet it, enable it, then attach it to Test Quality Reviewer.
+  const seedSkills: Array<typeof t.skills.$inferInsert> = [
+    {
+      workspaceId,
+      name: 'Test Coverage Rubric',
+      description: 'Flags uncovered branches and missing edge-case tests.',
+      type: 'rubric',
+      source: 'manual',
+      body: TEST_COVERAGE_RUBRIC_BODY,
+      enabled: true,
+      version: 1,
+    },
+    {
+      workspaceId,
+      name: 'Mocking Discipline',
+      description: 'Flags excessive mocking, especially mocking the thing under test.',
+      type: 'convention',
+      source: 'manual',
+      body: MOCKING_DISCIPLINE_BODY,
+      enabled: true,
+      version: 1,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Guard',
+      description: 'Flags breaking changes to route signatures, response shapes, and status codes.',
+      type: 'rubric',
+      source: 'manual',
+      body: API_CONTRACT_GUARD_BODY,
+      enabled: true,
+      version: 1,
+    },
+  ];
+  for (const sk of seedSkills) {
+    const [existing] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, sk.name)));
+    if (!existing) {
+      const [row] = await db.insert(t.skills).values(sk).returning();
+      await db
+        .insert(t.skillVersions)
+        .values({ skillId: row!.id, version: 1, body: row!.body })
+        .onConflictDoNothing();
+    }
+  }
+
+  async function linkSkillByName(agentId: string, skillName: string, order: number) {
+    const [skill] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, skillName)));
+    if (!skill) return;
+    await db
+      .insert(t.agentSkills)
+      .values({ agentId, skillId: skill.id, order })
+      .onConflictDoUpdate({ target: [t.agentSkills.agentId, t.agentSkills.skillId], set: { order } });
+  }
+
+  const [testQualityAgent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Test Quality Reviewer')));
+  const [generalAgent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'General Reviewer')));
+
+  if (testQualityAgent) {
+    await linkSkillByName(testQualityAgent.id, 'Test Coverage Rubric', 0);
+    await linkSkillByName(testQualityAgent.id, 'Mocking Discipline', 1);
+  }
+  if (generalAgent) {
+    await linkSkillByName(generalAgent.id, 'API Contract Guard', 0);
   }
 
   return { workspaceId, userId };

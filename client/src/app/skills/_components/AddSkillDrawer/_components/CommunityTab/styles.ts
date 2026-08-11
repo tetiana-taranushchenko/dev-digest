@@ -1,0 +1,53 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for CommunityTab. */
+export const s = {
+  wrap: { display: "flex", flexDirection: "column", gap: 14 } satisfies CSSProperties,
+  search: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    border: "1px solid var(--border-strong)",
+    borderRadius: 8,
+    padding: "8px 12px",
+    background: "var(--bg-elevated)",
+  } satisfies CSSProperties,
+  searchIcon: { color: "var(--text-muted)", flexShrink: 0 } satisfies CSSProperties,
+  searchInput: {
+    flex: 1,
+    border: "none",
+    outline: "none",
+    background: "transparent",
+    color: "var(--text-primary)",
+    fontSize: 13.5,
+  } satisfies CSSProperties,
+  chipRow: { display: "flex", flexWrap: "wrap", gap: 8 } satisfies CSSProperties,
+  list: { display: "flex", flexDirection: "column", gap: 10 } satisfies CSSProperties,
+  card: {
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    background: "var(--bg-elevated)",
+    padding: 14,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  } satisfies CSSProperties,
+  cardHeader: { display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
+  cardName: { fontSize: 14, fontWeight: 650, fontFamily: "var(--font-mono, monospace)" } satisfies CSSProperties,
+  stars: {
+    marginLeft: "auto",
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    fontSize: 12.5,
+    color: "var(--warn)",
+  } satisfies CSSProperties,
+  starIcon: { color: "var(--warn)" } satisfies CSSProperties,
+  cardDesc: { fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.45 } satisfies CSSProperties,
+  cardMeta: { display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  repo: { fontFamily: "var(--font-mono, monospace)" } satisfies CSSProperties,
+  cardActions: { display: "flex", justifyContent: "flex-end", marginTop: 4 } satisfies CSSProperties,
+  emptyBox: { padding: "24px 8px", textAlign: "center" } satisfies CSSProperties,
+  emptyTitle: { fontSize: 14, fontWeight: 600 } satisfies CSSProperties,
+  emptyBody: { fontSize: 13, color: "var(--text-muted)", marginTop: 4 } satisfies CSSProperties,
+} as const;

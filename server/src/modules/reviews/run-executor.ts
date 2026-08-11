@@ -1,6 +1,6 @@
 import type { Container } from '../../platform/container.js';
 import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
+import { reviewPullRequest, countBlockers, wrapUntrusted } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow, RepoRow } from './repository.js';
@@ -183,6 +183,23 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // Skills — enabled skills linked to this agent (linkedSkills is already
+      // order ASC). manual/extracted bodies are author-authored in-app
+      // (trusted); imported_url/community bodies came from outside the app, so
+      // they're delimiter-wrapped like the diff/PR description — untrusted
+      // data that must not be read as instructions.
+      const linkedSkills = await this.agents.linkedSkills(agent.id);
+      const skillBodies = linkedSkills
+        .filter((l) => l.skill.enabled)
+        .map((l) =>
+          l.skill.source === 'manual' || l.skill.source === 'extracted'
+            ? l.skill.body
+            : wrapUntrusted(`skill:${l.skill.id}`, l.skill.body),
+        );
+      if (skillBodies.length > 0) {
+        runLog.info(`Skills: ${skillBodies.length} enabled skill(s) attached`);
+      }
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -195,6 +212,10 @@ export class ReviewRunExecutor {
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
+        // Enabled linked skills only, in order — omitted (not `skills: []`)
+        // when the agent has none, so the prompt matches today's baseline
+        // byte-for-byte. assemblePrompt omits the section when absent/empty.
+        ...(skillBodies.length ? { skills: skillBodies } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
@@ -429,6 +450,9 @@ export class ReviewRunExecutor {
         source: 'local',
       },
       stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, cost_usd: null, findings: 0, grounding },
+      // skills stays null here (not the skills actually linked to the agent):
+      // this trace is built on pre-work/agent failure, before reviewPullRequest
+      // ever ran assemblePrompt, so no real prompt — skills included — exists.
       prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
       tool_calls: [],
       raw_output: '',

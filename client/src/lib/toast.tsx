@@ -38,9 +38,12 @@ export const notify = {
   info: (m: string) => activePusher?.(m, "info"),
 };
 
+// Solid (opaque) backgrounds — --ok-bg/--crit-bg are low-alpha tokens meant
+// for subtle inline badge highlights, not a floating notification that needs
+// to stay readable over arbitrary page content behind it.
 const COLORS: Record<ToastKind, { bg: string; border: string; icon: string }> = {
-  success: { bg: "var(--ok-bg, #052e1c)", border: "var(--ok)", icon: "✓" },
-  error: { bg: "var(--crit-bg, #2e0a0a)", border: "var(--crit)", icon: "✕" },
+  success: { bg: "var(--bg-elevated)", border: "var(--ok)", icon: "✓" },
+  error: { bg: "var(--bg-elevated)", border: "var(--crit)", icon: "✕" },
   info: { bg: "var(--bg-elevated)", border: "var(--border-strong)", icon: "ℹ" },
 };
 

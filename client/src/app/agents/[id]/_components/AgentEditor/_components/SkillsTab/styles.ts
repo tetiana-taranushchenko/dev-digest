@@ -1,0 +1,50 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for SkillsTab. */
+export const s = {
+  wrap: { maxWidth: 760 } satisfies CSSProperties,
+  header: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 } satisfies CSSProperties,
+  h2: { fontSize: 18, fontWeight: 700 } satisfies CSSProperties,
+  count: { marginLeft: "auto", fontSize: 13, color: "var(--text-secondary)" } satisfies CSSProperties,
+  hint: { fontSize: 12, color: "var(--text-muted)", margin: "10px 0 18px", lineHeight: 1.45 } satisfies CSSProperties,
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+    margin: "18px 0 8px",
+  } satisfies CSSProperties,
+  list: { display: "flex", flexDirection: "column", gap: 6 } satisfies CSSProperties,
+  row: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "9px 12px",
+    borderRadius: 7,
+    border: "1px solid var(--border)",
+    background: "var(--bg-elevated)",
+  } satisfies CSSProperties,
+  handle: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 18,
+    flexShrink: 0,
+    padding: 0,
+    background: "none",
+    border: "none",
+    color: "var(--text-muted)",
+    cursor: "grab",
+  } satisfies CSSProperties,
+  handleSpacer: { width: 18, flexShrink: 0 } satisfies CSSProperties,
+  name: {
+    flex: 1,
+    fontSize: 14,
+    color: "var(--text-primary)",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  } satisfies CSSProperties,
+  emptyNote: { fontSize: 13, color: "var(--text-muted)", padding: "8px 2px" } satisfies CSSProperties,
+} as const;

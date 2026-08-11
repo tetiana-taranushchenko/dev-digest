@@ -11,11 +11,12 @@ examples, see [examples.md](examples.md). For the research behind these rules
 (sources, quotes, rationale), see [README.md](README.md).
 
 **Scope boundary** — this skill does not duplicate:
+
 - `fastify-best-practices` — route/plugin mechanics, JSON-schema request/response validation details
 - `drizzle-orm-patterns` — schema definition, query writing, migrations
 - `zod` — how to construct/compose a schema
 
-This skill governs *where code lives and which way dependencies point*, not how to
+This skill governs _where code lives and which way dependencies point_, not how to
 write a route or a query.
 
 ## Severity Levels
@@ -51,12 +52,12 @@ Dependencies point inward only — Presentation → Infrastructure → Applicati
 Domain — never the reverse. The innermost ring (Domain) knows nothing about any
 ring that wraps it.
 
-| Ring (innermost → outermost) | Role |
-|---|---|
-| Domain | Pure business logic, zero framework/infra deps |
-| Application | Orchestration, business rules, DTO mapping |
+| Ring (innermost → outermost)    | Role                                                            |
+| ------------------------------- | --------------------------------------------------------------- |
+| Domain                          | Pure business logic, zero framework/infra deps                  |
+| Application                     | Orchestration, business rules, DTO mapping                      |
 | Infrastructure (ports/adapters) | Drizzle data access, external system adapters, composition root |
-| Presentation | Fastify handler + Zod request validation, thin |
+| Presentation                    | Fastify handler + Zod request validation, thin                  |
 
 For the exact path-by-path mapping and which modules currently carry the full
 split vs. stay flat, see [LAYER_MAP.md](LAYER_MAP.md) — the living source of
@@ -76,7 +77,7 @@ truth; update it whenever a module is added or graduates.
 - `routes.ts` never imports `repository.ts` or `server/src/adapters/*` directly,
   and never contains SQL or business rules — it parses/validates (Zod), calls the
   service, and serializes the response.
-- `server/src/platform/container.ts` is the *only* file allowed to import both an
+- `server/src/platform/container.ts` is the _only_ file allowed to import both an
   adapter's interface and its concrete implementation together (it's the
   composition root).
 
@@ -117,7 +118,7 @@ truth; update it whenever a module is added or graduates.
 
 ## Validation Placement (HIGH)
 
-- Zod schemas in `routes.ts` (via `fastify-type-provider-zod`) validate *shape* —
+- Zod schemas in `routes.ts` (via `fastify-type-provider-zod`) validate _shape_ —
   request params/body structure and types — at the HTTP boundary. This is already
   the repo convention; keep it there.
 - Business/domain invariants (e.g. "an agent version must reference an existing
@@ -127,7 +128,7 @@ truth; update it whenever a module is added or graduates.
 ## Repository Pattern & Dependency Inversion (HIGH)
 
 - `repository.ts` exposes typed functions and DTOs (the existing pattern, e.g.
-  typed `Insert*` interfaces) as the *sole* interface between the application
+  typed `Insert*` interfaces) as the _sole_ interface between the application
   layer and Drizzle. `service.ts` depends on that function surface, never on
   `db`/`schema` directly — this is the dependency-inversion mechanism that makes
   services unit-testable without a real database.
