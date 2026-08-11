@@ -26,7 +26,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
         id: r.id,
         full_name: r.fullName,
         clone_path: r.clonePath,
-        last_polled_at: r.lastPolledAt?.toISOString() ?? null,
+        last_polled_at: r.lastPolledAt?.toISOString(),
         cloned: Boolean(r.clonePath),
       })),
     };
