@@ -10,6 +10,7 @@ import { Button, Dropdown, type DropdownItemDef } from "@devdigest/ui";
 import { useAgents } from "../../../../../../../lib/hooks/agents";
 import { useRunReview } from "../../../../../../../lib/hooks/reviews";
 import { DROPDOWN_WIDTH } from "./constants";
+import { compactModelName } from "./helpers";
 
 export function RunReviewDropdown({
   prId,
@@ -52,12 +53,15 @@ export function RunReviewDropdown({
   // agent can be run regardless of its enabled flag. "Run all" still targets
   // only enabled agents.
   const agentItems: DropdownItemDef[] = all.length
-    ? all.map((a) => ({
-        label: a.name,
-        icon: "Cpu" as const,
-        hint: a.enabled ? a.model : `${a.model} · disabled`,
-        onClick: () => kick({ agentId: a.id }),
-      }))
+    ? all.map((a) => {
+        const model = compactModelName(a.model);
+        return {
+          label: a.name,
+          icon: "Cpu" as const,
+          hint: a.enabled ? model : `${model} · disabled`,
+          onClick: () => kick({ agentId: a.id }),
+        };
+      })
     : [{ label: "No agents yet — create one", icon: "Plus", muted: true, onClick: () => router.push("/agents") }];
 
   const items: DropdownItemDef[] = [

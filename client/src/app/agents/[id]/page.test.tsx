@@ -33,6 +33,7 @@ vi.mock("../../../components/app-shell", () => ({
 vi.mock("../../../lib/hooks/agents", () => ({
   useAgents: () => ({ data: [agent] }),
   useAgent: () => ({ data: agent, isLoading: false, isError: false, error: null, refetch: vi.fn() }),
+  useAgentSkillCounts: () => ({ "agent-1": 4 }),
   useUpdateAgent: () => ({ mutate: vi.fn() }),
 }));
 
