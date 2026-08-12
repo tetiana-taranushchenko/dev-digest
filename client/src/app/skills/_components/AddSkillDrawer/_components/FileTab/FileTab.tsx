@@ -11,12 +11,9 @@ import { s } from "./styles";
 
 const SKILL_TYPE_VALUES: readonly SkillType[] = ["rubric", "convention", "security", "custom"];
 
-/** File tab — a single continuous form (matches the reference design exactly:
- *  no Description field here). Choosing a file extracts its core (markdown
- *  text only; archive contents are never executed) and fills Skill name (if
- *  blank) + Skill body inline, still editable before the explicit "Import
- *  skill" click — the description the extractor derives is kept internally
- *  and sent on submit even though there's no visible field for it. */
+/** File tab — choosing a file extracts its metadata and markdown body (archive
+ *  contents are never executed). Name, description, type, and body stay
+ *  editable before the explicit "Import skill" confirmation. */
 export function FileTab({ onImported }: { onImported: () => void }) {
   const t = useTranslations("skills");
   const toast = useToast();
@@ -66,6 +63,13 @@ export function FileTab({ onImported }: { onImported: () => void }) {
     <div>
       <FormField label={t("file.nameLabel")} hint={t("file.nameHint")}>
         <TextInput value={name} onChange={setName} />
+      </FormField>
+      <FormField label={t("config.description")} hint={t("config.descriptionHint")}>
+        <TextInput
+          value={description}
+          onChange={setDescription}
+          placeholder={t("create.descriptionPlaceholder")}
+        />
       </FormField>
       <FormField label={t("config.type")}>
         <SelectInput

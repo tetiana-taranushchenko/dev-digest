@@ -2,6 +2,26 @@ import type React from "react";
 
 export const s = {
   page: { padding: 28, maxWidth: 1040, margin: "0 auto" },
+  extractionInProgress: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    padding: "48px 16px",
+    borderRadius: 10,
+    border: "1px solid var(--border-strong)",
+    background: "var(--bg-elevated)",
+  },
+  extractionInProgressText: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: "var(--text-primary)",
+  },
+  extractionInProgressSub: {
+    fontSize: 13,
+    color: "var(--text-secondary)",
+  },
   header: { display: "flex", alignItems: "flex-start", gap: 20, marginBottom: 24 },
   headerText: { flex: 1, minWidth: 0 },
   h1: { fontSize: 24, lineHeight: 1.25, fontWeight: 750, margin: 0 },

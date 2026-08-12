@@ -6,6 +6,7 @@
     "repoFallback": "repository",
     "subtitle": "Scan the cloned repository for project-specific rules, verify their evidence, and turn approved candidates into a review skill.",
     "scanning": "Scanning…",
+    "scanningSub": "reading configs and the top-ranked source files — this can take a while.",
     "rescan": "Re-scan",
     "rescanConfirm": "Re-scanning replaces all current candidates and their decisions. Continue?",
     "runExtraction": "Run extraction",

@@ -155,11 +155,6 @@ export class SkillsService {
 
   async create(workspaceId: string, input: CreateSkillInput): Promise<Skill> {
     const untrusted = isUntrustedSource(input.source);
-    if (untrusted && input.enabled === true) {
-      throw new ValidationError(
-        'Untrusted-source skills must be vetted before they can be enabled',
-      );
-    }
     // Injection risk is a stronger, source-independent override: a flagged
     // body is silently saved disabled regardless of what was requested — no
     // error, matching "automatically blocked" (not "rejected").

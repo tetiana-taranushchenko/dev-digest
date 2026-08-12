@@ -2,7 +2,8 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Button, EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
+import { Button, EmptyState, ErrorState, Icon, Skeleton } from "@devdigest/ui";
+import { ConfirmDialog } from "../../../../components/ConfirmDialog";
 import { AppShell } from "../../../../components/app-shell";
 import { useActiveRepo } from "../../../../lib/repo-context";
 import {
@@ -22,17 +23,25 @@ export function ConventionsView() {
   const query = useConventions(repoId);
   const extract = useExtractConventions(repoId ?? "");
   const [showModal, setShowModal] = React.useState(false);
+  const [showRescanConfirm, setShowRescanConfirm] = React.useState(false);
   const candidates = query.data ?? [];
   const approved = candidates.filter((candidate) => candidate.status === "approved").length;
 
-  const runExtraction = () => {
-    if (!repoId) return;
-    if (candidates.length > 0 && !window.confirm(t("page.rescanConfirm"))) return;
+  const startExtraction = () => {
     extract.mutate(undefined, {
       onSuccess: (items) => toast.success(t("page.extracted", { count: items.length })),
       onError: (error) =>
         toast.error(error instanceof ApiError ? error.message : t("page.extractionFailed")),
     });
+  };
+
+  const runExtraction = () => {
+    if (!repoId) return;
+    if (candidates.length > 0) {
+      setShowRescanConfirm(true);
+      return;
+    }
+    startExtraction();
   };
 
   return (
@@ -81,14 +90,21 @@ export function ConventionsView() {
             body={t("page.noRepo.body")}
           />
         )}
-        {repoId && query.isLoading && <Skeleton height={240} />}
-        {repoId && query.isError && (
+        {repoId && extract.isPending && (
+          <div style={s.extractionInProgress}>
+            <Icon.RefreshCw size={20} style={{ color: "var(--accent)", animation: "ddspin 1s linear infinite" }} />
+            <span style={s.extractionInProgressText}>{t("page.scanning")}</span>
+            <span style={s.extractionInProgressSub}>{t("page.scanningSub")}</span>
+          </div>
+        )}
+        {repoId && !extract.isPending && query.isLoading && <Skeleton height={240} />}
+        {repoId && !extract.isPending && query.isError && (
           <ErrorState
             body={query.error instanceof ApiError ? query.error.message : t("page.loadError")}
             onRetry={() => query.refetch()}
           />
         )}
-        {repoId && !query.isLoading && !query.isError && candidates.length === 0 && (
+        {repoId && !extract.isPending && !query.isLoading && !query.isError && candidates.length === 0 && (
           <EmptyState
             icon="ListChecks"
             title={t("page.empty.title")}
@@ -97,7 +113,7 @@ export function ConventionsView() {
             onCta={runExtraction}
           />
         )}
-        {repoId && candidates.length > 0 && activeRepo && (
+        {repoId && !extract.isPending && candidates.length > 0 && activeRepo && (
           <>
             <div style={s.summary}>
               <span>{t("page.candidateCount", { count: candidates.length })}</span>
@@ -123,6 +139,19 @@ export function ConventionsView() {
           repoId={repoId}
           repoName={activeRepo?.name ?? t("page.repoFallback")}
           onClose={() => setShowModal(false)}
+        />
+      )}
+      {showRescanConfirm && (
+        <ConfirmDialog
+          title={t("page.rescan")}
+          message={t("page.rescanConfirm")}
+          confirmLabel={t("page.rescan")}
+          danger
+          onConfirm={() => {
+            setShowRescanConfirm(false);
+            startExtraction();
+          }}
+          onCancel={() => setShowRescanConfirm(false)}
         />
       )}
     </AppShell>
