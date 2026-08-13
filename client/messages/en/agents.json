@@ -1,7 +1,10 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills"
+    "skillCount": "{count, plural, one {# skill} other {# skills}}",
+    "delete": "Delete agent",
+    "deleteTitle": "Delete agent?",
+    "deleteConfirm": "Delete agent \"{name}\"? This cannot be undone."
   },
   "list": {
     "breadcrumbLab": "Skills Lab",
@@ -39,7 +42,7 @@
     "loadErrorBody": "The agent could not be loaded.",
     "agentFallback": "Agent",
     "listTitle": "Agents",
-    "add": "Add",
+    "add": "Add Agent",
     "createFromScratch": "Create from scratch",
     "disabled": "disabled",
     "runOnPr": "Run on a PR…",
@@ -91,7 +94,9 @@
     "title": "Skills",
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."
+    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag to reorder.",
+    "filterEmpty": "No skills match your filter.",
+    "attachBlocked": "Couldn't attach that skill — its content looked unsafe."
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

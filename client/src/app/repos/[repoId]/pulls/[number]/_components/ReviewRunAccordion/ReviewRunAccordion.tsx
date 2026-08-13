@@ -11,6 +11,7 @@ import type { ReviewRecord, Verdict, Severity } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
+import { s } from "./styles";
 
 const VERDICT_COLOR: Record<string, string> = {
   request_changes: "var(--crit)",
@@ -31,6 +32,8 @@ export function ReviewRunAccordion({
   headSha,
   targetRunId = null,
   targetNonce = 0,
+  targetFindingId = null,
+  targetFindingNonce = 0,
   severityFilter = null,
 }: {
   review: ReviewRecord;
@@ -42,18 +45,24 @@ export function ReviewRunAccordion({
    *  (driven from the Timeline: clicking an agent name navigates here). */
   targetRunId?: string | null;
   targetNonce?: number;
+  /** When this run's findings include this id, the accordion opens and scrolls
+   *  into view too (driven from a findings popover: clicking a finding). */
+  targetFindingId?: string | null;
+  targetFindingNonce?: number;
   /** When set, the body's FindingsPanel shows only findings of this severity. */
   severityFilter?: Severity | null;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const containsTargetFinding =
+    targetFindingId != null && review.findings.some((f) => f.id === targetFindingId);
   React.useEffect(() => {
-    if (review.run_id && review.run_id === targetRunId) {
+    if ((review.run_id && review.run_id === targetRunId) || containsTargetFinding) {
       setOpen(true);
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetRunId, targetNonce, review.run_id]);
+  }, [targetRunId, targetNonce, targetFindingId, targetFindingNonce, review.run_id]);
   const del = useDeleteReview(prId);
   const findings = review.findings;
   const blockers = findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
@@ -63,14 +72,7 @@ export function ReviewRunAccordion({
     <div
       ref={rootRef}
       id={review.run_id ? `review-run-${review.run_id}` : undefined}
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-        background: "var(--bg-surface)",
-        marginBottom: 14,
-        overflow: "hidden",
-        scrollMarginTop: 16,
-      }}
+      style={s.root}
     >
       <div
         role="button"
@@ -79,34 +81,26 @@ export function ReviewRunAccordion({
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") setOpen((o) => !o);
         }}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          padding: "13px 16px",
-          cursor: "pointer",
-          color: "var(--text-primary)",
-        }}
+        style={s.header}
       >
-        <Icon.Cpu size={15} style={{ color: "var(--text-muted)" }} />
-        <span style={{ fontWeight: 600, fontSize: 14 }}>{review.agent_name ?? "Agent"}</span>
+        <Icon.Cpu size={15} style={s.headerIcon} />
+        <span style={s.agentName}>{review.agent_name ?? "Agent"}</span>
         {review.verdict && (
           <Badge color={verdictColor} bg="transparent">
             {review.verdict.replace("_", " ")}
           </Badge>
         )}
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+        <span style={s.metaText}>
           {findings.length} finding{findings.length === 1 ? "" : "s"}
           {blockers > 0 ? ` · ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
         </span>
-        <span style={{ flex: 1 }} />
+        <span style={s.spacer} />
         {review.score != null && (
           <Badge mono color="var(--text-secondary)">
             {review.score}
           </Badge>
         )}
-        <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+        <span className="mono" style={s.when}>
           {formatWhen(review.created_at)}
         </span>
         <button
@@ -119,27 +113,17 @@ export function ReviewRunAccordion({
           disabled={del.isPending}
           title="Delete this review run"
           aria-label="Delete this review run"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: del.isPending ? "not-allowed" : "pointer",
-            color: "var(--text-muted)",
-            display: "inline-flex",
-            padding: 4,
-          }}
+          style={s.deleteBtn(del.isPending)}
         >
-          <Icon.Trash size={14} style={del.isPending ? { animation: "ddspin 1s linear infinite" } : undefined} />
+          <Icon.Trash size={14} style={s.deleteIcon(del.isPending)} />
         </button>
-        <Icon.ChevronDown
-          size={16}
-          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", color: "var(--text-muted)" }}
-        />
+        <Icon.ChevronDown size={16} style={s.chevron(open)} />
       </div>
 
       {open && (
-        <div style={{ padding: "0 16px 16px" }}>
+        <div style={s.body}>
           {review.verdict && (
-            <div style={{ marginBottom: 16 }}>
+            <div style={s.verdictWrap}>
               <VerdictBanner
                 verdict={review.verdict as Verdict}
                 summary={review.summary}
@@ -156,6 +140,8 @@ export function ReviewRunAccordion({
             repoFullName={repoFullName}
             headSha={headSha}
             severityFilter={severityFilter}
+            targetFindingId={targetFindingId}
+            targetFindingNonce={targetFindingNonce}
           />
         </div>
       )}

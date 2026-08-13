@@ -1,0 +1,4 @@
+interface:
+  display_name: "Breaking Change"
+  short_description: "Detect public API contract breakage"
+  default_prompt: "Use $breaking-change to review this PR for public API breakage."

@@ -132,6 +132,24 @@ cd ../client && pnpm install && pnpm dev               # web on :3000
 (unit/integration split: `pnpm exec vitest run --exclude '**/*.it.test.ts'` / `pnpm exec vitest run .it.test`)
 `client/`: `dev` · `build` · `start` · `test` · `typecheck`
 
+## PR self-review (optional, one-time setup)
+
+The `pr-self-review` skill (`.claude/skills/pr-self-review/`) runs the
+project's own skills (architecture, security, React/backend best practices)
+against your branch's diff and blocks `git push` if it finds a CRITICAL
+issue. It runs manually via `/pr-self-review` in Claude Code, or
+automatically on every push once you point git at the versioned hooks
+folder:
+
+```sh
+git config core.hooksPath .githooks
+chmod +x .githooks/pre-push .claude/skills/pr-self-review/scripts/*.sh
+```
+
+Bypass a single push with `git push --no-verify`. See
+[`.claude/skills/pr-self-review/SKILL.md`](.claude/skills/pr-self-review/SKILL.md)
+for how it matches skills to changed files.
+
 ## Testing & CI
 
 One test suite per package, each gated by its own GitHub Actions workflow with a

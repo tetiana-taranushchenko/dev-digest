@@ -1,0 +1,83 @@
+import type { CSSProperties } from "react";
+
+type Place = { left: number; maxHeight: number; top?: number; bottom?: number };
+
+/** Co-located styles for FindingsPopover (extracted from inline styles). */
+export const s = {
+  anchor: { display: "inline-flex", alignItems: "center", gap: 4 } satisfies CSSProperties,
+  fileLineLink: (hover: boolean): CSSProperties => ({
+    fontSize: 12,
+    color: hover ? "var(--accent-text)" : "var(--text-secondary)",
+    textDecoration: hover ? "underline" : "none",
+    textUnderlineOffset: 2,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  }),
+  row: (first: boolean, clickable: boolean): CSSProperties => ({
+    padding: "8px 0",
+    borderTop: first ? "none" : "1px solid var(--border)",
+    cursor: clickable ? "pointer" : undefined,
+  }),
+  rowHeader: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 } satisfies CSSProperties,
+  rowTitle: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: "var(--text-primary)",
+    flex: 1,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
+  rowMeta: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginTop: 4,
+  } satisfies CSSProperties,
+  rowFileFallback: {
+    fontSize: 12,
+    color: "var(--text-secondary)",
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
+  rowRationale: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+    marginTop: 4,
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+  } satisfies CSSProperties,
+  popup: (place: Place, width: number): CSSProperties => ({
+    position: "fixed",
+    top: place.top,
+    bottom: place.bottom,
+    left: place.left,
+    width,
+    maxHeight: place.maxHeight,
+    overflowY: "auto",
+    overflowX: "hidden",
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border-strong)",
+    borderRadius: 10,
+    boxShadow: "var(--shadow-modal)",
+    padding: "10px 14px",
+    zIndex: 100,
+    animation: "ddpop .12s ease",
+  }),
+  heading: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+    marginBottom: 8,
+  } satisfies CSSProperties,
+} as const;

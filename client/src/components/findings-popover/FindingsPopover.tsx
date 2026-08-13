@@ -9,9 +9,81 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { SeverityBadge, CategoryTag, ConfidenceNum, type Severity, type Category } from "@devdigest/ui";
 import type { Finding } from "@devdigest/shared";
+import { githubBlobUrl } from "@/lib/github-urls";
+import { s } from "./styles";
 
 function lineLabel(f: Finding): string {
   return f.start_line === f.end_line ? String(f.start_line) : `${f.start_line}-${f.end_line}`;
+}
+
+/** file:line link — same hover affordance as MonoLink (@devdigest/ui): accent
+ *  color + underline on hover, plain otherwise. Not MonoLink itself because
+ *  this needs a smaller font and ellipsis truncation for the tight popup width. */
+function FileLineLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  const [hover, setHover] = React.useState(false);
+  return (
+    <a
+      className="mono"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={s.fileLineLink(hover)}
+    >
+      {children}
+    </a>
+  );
+}
+
+/** One finding's row inside the popup: severity + title + category, then
+ *  file:line + confidence, then a truncated rationale. */
+function FindingPopoverRow({
+  finding: f,
+  first,
+  repoFullName,
+  headSha,
+  onClick,
+}: {
+  finding: Finding;
+  first: boolean;
+  repoFullName?: string | null;
+  headSha?: string | null;
+  onClick?: (e: React.MouseEvent) => void;
+}) {
+  const fileHref =
+    repoFullName && headSha
+      ? githubBlobUrl(repoFullName, headSha, f.file, f.start_line, f.end_line)
+      : undefined;
+  return (
+    <div onClick={onClick} style={s.row(first, Boolean(onClick))}>
+      <div style={s.rowHeader}>
+        <SeverityBadge severity={f.severity as Severity} compact />
+        <span style={s.rowTitle}>{f.title}</span>
+        <CategoryTag category={f.category as Category} />
+      </div>
+      <div style={s.rowMeta}>
+        {fileHref ? (
+          <FileLineLink href={fileHref}>
+            {f.file}:{lineLabel(f)}
+          </FileLineLink>
+        ) : (
+          <span className="mono" style={s.rowFileFallback}>
+            {f.file}:{lineLabel(f)}
+          </span>
+        )}
+        <ConfidenceNum value={f.confidence} />
+      </div>
+      <div style={s.rowRationale}>{f.rationale}</div>
+    </div>
+  );
 }
 
 const POPUP_WIDTH = 340;
@@ -48,12 +120,22 @@ export function FindingsPopover({
   items,
   total,
   heading,
+  repoFullName,
+  headSha,
+  onFindingClick,
 }: {
   trigger: React.ReactNode;
   items: Finding[];
   total: number;
   /** Overrides the default "{n} finding(s)" header text, e.g. "in this run". */
   heading?: string;
+  /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
+  repoFullName?: string | null;
+  headSha?: string | null;
+  /** Clicking a finding (not its file:line link) jumps to its card in
+   *  "Review runs" below — or, when this popover lives on a different page
+   *  (e.g. the PR list), navigates there first. */
+  onFindingClick?: (findingId: string) => void;
 }) {
   const [place, setPlace] = React.useState<Place | null>(null);
   const anchorRef = React.useRef<HTMLDivElement>(null);
@@ -86,7 +168,7 @@ export function FindingsPopover({
       ref={anchorRef}
       onMouseEnter={show}
       onMouseLeave={scheduleHide}
-      style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+      style={s.anchor}
     >
       {trigger}
       {place && items.length > 0 &&
@@ -94,100 +176,26 @@ export function FindingsPopover({
           <div
             onMouseEnter={clearCloseTimer}
             onMouseLeave={scheduleHide}
-            style={{
-              position: "fixed",
-              top: place.top,
-              bottom: place.bottom,
-              left: place.left,
-              width: POPUP_WIDTH,
-              maxHeight: place.maxHeight,
-              overflowY: "auto",
-              overflowX: "hidden",
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border-strong)",
-              borderRadius: 10,
-              boxShadow: "var(--shadow-modal)",
-              padding: "10px 14px",
-              zIndex: 100,
-              animation: "ddpop .12s ease",
-            }}
+            style={s.popup(place, POPUP_WIDTH)}
           >
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: "var(--text-muted)",
-                marginBottom: 8,
-              }}
-            >
-              {heading ?? defaultHeading}
-            </div>
+            <div style={s.heading}>{heading ?? defaultHeading}</div>
             {items.map((f, i) => (
-              <div
+              <FindingPopoverRow
                 key={f.id}
-                style={{
-                  padding: "8px 0",
-                  borderTop: i === 0 ? "none" : "1px solid var(--border)",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                  <SeverityBadge severity={f.severity as Severity} compact />
-                  <span
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "var(--text-primary)",
-                      flex: 1,
-                      minWidth: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {f.title}
-                  </span>
-                  <CategoryTag category={f.category as Category} />
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    marginTop: 4,
-                  }}
-                >
-                  <span
-                    className="mono"
-                    style={{
-                      fontSize: 12,
-                      color: "var(--text-secondary)",
-                      minWidth: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {f.file}:{lineLabel(f)}
-                  </span>
-                  <ConfidenceNum value={f.confidence} />
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "var(--text-muted)",
-                    marginTop: 4,
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden",
-                  }}
-                >
-                  {f.rationale}
-                </div>
-              </div>
+                finding={f}
+                first={i === 0}
+                repoFullName={repoFullName}
+                headSha={headSha}
+                onClick={
+                  onFindingClick
+                    ? (e) => {
+                        e.stopPropagation();
+                        setPlace(null);
+                        onFindingClick(f.id);
+                      }
+                    : undefined
+                }
+              />
             ))}
           </div>,
           document.body,

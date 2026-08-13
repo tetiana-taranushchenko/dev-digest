@@ -16,9 +16,6 @@ export function SelectInput({
   return (
     <div
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
         padding: "10px 12px",
         borderRadius: 7,
         border: "1px solid var(--border-strong)",
@@ -31,8 +28,12 @@ export function SelectInput({
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
         style={{
-          flex: 1,
+          display: "block",
+          width: "100%",
+          minWidth: 0,
+          padding: "0 24px 0 0",
           fontSize: 14,
+          lineHeight: 1.5,
           color: "var(--text-primary)",
           background: "transparent",
           border: "none",
@@ -51,7 +52,18 @@ export function SelectInput({
           );
         })}
       </select>
-      <Icon.ChevronsUpDown size={14} style={{ color: "var(--text-muted)", pointerEvents: "none" }} />
+      <Icon.ChevronsUpDown
+        size={14}
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          top: "50%",
+          right: 12,
+          transform: "translateY(-50%)",
+          color: "var(--text-muted)",
+          pointerEvents: "none",
+        }}
+      />
     </div>
   );
 }

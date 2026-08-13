@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import multipart from '@fastify/multipart';
 import { FastifySSEPlugin } from 'fastify-sse-v2';
 import {
   validatorCompiler,
@@ -52,6 +53,13 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
         ? false
         : {
             level: config.logLevel,
+            // Defense-in-depth: nothing currently logs these, but a future
+            // custom serializer or an SDK error embedding request context
+            // must not leak a token/BYO-key into the logs.
+            redact: {
+              paths: ['req.headers.authorization', 'req.headers.cookie', 'req.body.key'],
+              censor: '[Redacted]',
+            },
             transport:
               config.nodeEnv === 'development'
                 ? { target: 'pino-pretty', options: { colorize: true } }
@@ -89,6 +97,10 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   await app.register(helmet);
   await app.register(cors, { origin: [config.webOrigin], credentials: true });
   await app.register(FastifySSEPlugin);
+  // Skill import (file/archive upload). Small cap — skills are short
+  // instruction texts, not general file storage; kept well under the
+  // app-level bodyLimit above.
+  await app.register(multipart, { limits: { fileSize: 256 * 1024, files: 1 } });
 
   // Global rate limit. Disabled under test so integration suites can hammer
   // endpoints via inject(); per-route overrides live on the routes themselves.

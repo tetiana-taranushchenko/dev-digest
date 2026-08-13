@@ -128,6 +128,12 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  // Computed live from the current body on every read (never stored) — true
+  // when it matches a prompt-injection/self-declared-danger heuristic. A
+  // flagged skill is always forced enabled:false server-side regardless of
+  // what was requested; editing the body clears the flag on the next read.
+  injection_flagged: z.boolean(),
+  injection_reason: z.string().nullable(),
 });
 export type Skill = z.infer<typeof Skill>;
 
@@ -141,12 +147,34 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
+export const ConventionCategory = z.enum([
+  'naming',
+  'formatting',
+  'imports',
+  'typing',
+  'async',
+  'errors',
+  'architecture',
+  'testing',
+  'api',
+  'other',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
+export const ConventionStatus = z.enum(['pending', 'approved', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
 export const ConventionCandidate = z.object({
   id: z.string(),
+  category: ConventionCategory,
   rule: z.string(),
   evidence_path: z.string(),
+  evidence_line: z.number().int().positive(),
   evidence_snippet: z.string(),
+  evidence_ref: z.string(),
   confidence: z.number().min(0).max(1),
+  status: ConventionStatus,
+  /** Compatibility projection: true exactly when status is `approved`. */
   accepted: z.boolean(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;

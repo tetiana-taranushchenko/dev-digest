@@ -30,6 +30,9 @@ Adding `cost_usd: z.number().nullable()` to `RunStats`/`RunSummary` (`client/src
 ### 2026-08-06 — Severity tally loops need an `in counts` guard, or an unrecognized severity produces `NaN`
 `RunHistory.tsx:28`'s `RunFindingsSummary` did `counts[f.severity as Severity]++` with no check that `f.severity` is a known key — `severity` is a free-text DB column (`server/src/db/schema/reviews.ts:36`, no enum constraint), so any unexpected value makes `counts[...]` `undefined` and `undefined++` is `NaN`, silently breaking the badge. `SeverityCounters.tsx:24` already guards this with `f.severity in c`; `RunHistory.tsx` was missed when the same tally logic was duplicated there. Fixed by adding the same `f.severity in counts` guard. Any future severity-tally loop should copy this guard rather than the unguarded version.
 
+### 2026-08-11 — `tsconfig`'s `moduleResolution: "Bundler"` does not make webpack resolve `.js`-suffixed relative imports to `.ts` files — `next.config.mjs` needs `experimental.extensionAlias` too
+`import ... from './contracts/findings.js'` in `client/src/vendor/shared/index.ts:17` failed dev-server compilation with "Module not found: Can't resolve './contracts/findings.js'" even though `findings.ts` existed and was correct, and `rm -rf client/.next` didn't fix it. Root cause: TypeScript's `moduleResolution: "Bundler"` (`client/tsconfig.json`) accepts this `.js`→`.ts` pattern for type-checking, but Next's webpack build only wires up this alias from `config.experimental.extensionAlias` (`node_modules/next/dist/build/webpack-config.js:575`) — it isn't on by default. Fixed by adding `experimental: { extensionAlias: { ".js": [".ts", ".tsx", ".js"] } }` to `client/next.config.mjs`. If a "module not found" error names a real, correctly-spelled `.ts` file, suspect this config gap before suspecting a stale cache.
+
 ## Session Notes
 
 ## Open Questions

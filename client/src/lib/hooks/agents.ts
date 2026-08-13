@@ -1,9 +1,9 @@
 /* hooks/agents.ts — React Query hooks for the A2 Agents tab + Agent Editor. */
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Agent, ModelInfo, Provider, ReviewStrategy } from "@devdigest/shared";
+import type { Agent, AgentSkillLink, ModelInfo, Provider, ReviewStrategy } from "@devdigest/shared";
 
 export function useAgents() {
   return useQuery({
@@ -87,5 +87,43 @@ export function useProviderModels(provider: Provider | null | undefined) {
     queryFn: () => api.get<ModelInfo[]>(`/providers/${provider}/models`),
     enabled: !!provider,
     staleTime: 5 * 60_000,
+  });
+}
+
+/** Ordered skill links for an agent (Skills tab). */
+export function useAgentSkills(agentId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["agent-skills", agentId],
+    queryFn: () => api.get<AgentSkillLink[]>(`/agents/${agentId}/skills`),
+    enabled: !!agentId,
+  });
+}
+
+/** Linked-skill counts for a list of agent cards. Reuses the same per-agent
+    query keys as the Skills editor, so attaching or detaching a skill updates
+    the badge without a separate cache or endpoint. */
+export function useAgentSkillCounts(agentIds: string[]) {
+  const queries = useQueries({
+    queries: agentIds.map((agentId) => ({
+      queryKey: ["agent-skills", agentId],
+      queryFn: () => api.get<AgentSkillLink[]>(`/agents/${agentId}/skills`),
+    })),
+  });
+
+  return Object.fromEntries(
+    agentIds.map((agentId, index) => [agentId, queries[index]?.data?.length]),
+  ) as Record<string, number | undefined>;
+}
+
+/** Replace an agent's whole ordered skill set in one call
+    (delete-all-then-reinsert-with-order server-side). */
+export function useSetAgentSkills() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ agentId, skillIds }: { agentId: string; skillIds: string[] }) =>
+      api.post<AgentSkillLink[]>(`/agents/${agentId}/skills`, { skill_ids: skillIds }),
+    onSuccess: (_data, { agentId }) => {
+      qc.invalidateQueries({ queryKey: ["agent-skills", agentId] });
+    },
   });
 }

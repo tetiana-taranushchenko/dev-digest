@@ -1,0 +1,97 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for StatsTab. */
+export const s = {
+  wrap: { maxWidth: 900, display: "flex", flexDirection: "column", gap: 20 } satisfies CSSProperties,
+  framingNote: {
+    fontSize: 12.5,
+    color: "var(--text-muted)",
+    lineHeight: 1.5,
+    padding: "10px 12px",
+    borderRadius: 7,
+    border: "1px solid var(--border)",
+    background: "var(--bg-elevated)",
+  } satisfies CSSProperties,
+  metricsRow: { display: "flex", gap: 14, alignItems: "stretch" } satisfies CSSProperties,
+  // Same box shape as MetricCard (vendor/ui/charts/MetricCard.tsx) so the
+  // Accept Rate tile sits flush with its siblings — MetricCard itself has no
+  // slot for a small ring badge, so this tile is hand-built to match it.
+  acceptCard: {
+    flex: 1,
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    padding: 18,
+  } satisfies CSSProperties,
+  acceptCardHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  } satisfies CSSProperties,
+  acceptCardLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+    letterSpacing: "0.03em",
+  } satisfies CSSProperties,
+  acceptCardValue: {
+    fontSize: 32,
+    fontWeight: 700,
+    letterSpacing: "-0.02em",
+    marginTop: 12,
+  } satisfies CSSProperties,
+  acceptCardSuffix: { fontSize: 18, color: "var(--text-muted)" } satisfies CSSProperties,
+  sectionsRow: { display: "flex", gap: 20, alignItems: "flex-start" } satisfies CSSProperties,
+  section: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 10 } satisfies CSSProperties,
+  sectionHeader: { display: "flex", alignItems: "center", gap: 7 } satisfies CSSProperties,
+  sectionIcon: { color: "var(--text-muted)" } satisfies CSSProperties,
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  agentList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    background: "var(--bg-elevated)",
+    padding: 6,
+  } satisfies CSSProperties,
+  agentRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 10px",
+    borderRadius: 6,
+    fontSize: 13.5,
+    color: "var(--text-primary)",
+    textDecoration: "none",
+  } satisfies CSSProperties,
+  agentIconBox: {
+    width: 24,
+    height: 24,
+    flexShrink: 0,
+    borderRadius: 6,
+    background: "var(--bg-hover)",
+    display: "grid",
+    placeItems: "center",
+    color: "var(--accent)",
+  } satisfies CSSProperties,
+  agentName: { flex: 1, fontWeight: 600 } satisfies CSSProperties,
+  agentOpen: { fontSize: 12.5, color: "var(--text-muted)" } satisfies CSSProperties,
+  emptyNote: { fontSize: 13, color: "var(--text-muted)", padding: "8px 2px" } satisfies CSSProperties,
+  donutCard: {
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    background: "var(--bg-elevated)",
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  } satisfies CSSProperties,
+  costDisclaimer: { fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 } satisfies CSSProperties,
+} as const;

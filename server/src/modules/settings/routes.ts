@@ -92,7 +92,11 @@ export default async function settingsRoutes(appBase: FastifyInstance) {
       const models = await llm.listModels();
       return { provider, ok: true, message: `OK — ${models.length} models available` };
     } catch (err) {
-      return { provider, ok: false, message: (err as Error).message };
+      // Don't quote the raw SDK error text back to the client — a future
+      // provider SDK could embed request context (URL/headers) in its
+      // message. Log the real error server-side; return a generic one.
+      req.log.error({ err, provider }, 'settings: connection test failed');
+      return { provider, ok: false, message: 'Connection test failed. Check your key and try again.' };
     }
   });
 }

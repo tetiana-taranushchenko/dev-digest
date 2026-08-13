@@ -6,7 +6,7 @@
 import React from "react";
 import { Chip, SEV } from "@devdigest/ui";
 import type { FindingRecord, Severity } from "@devdigest/shared";
-import { SEVERITY_ORDER } from "@/lib/severity";
+import { SEVERITY_ORDER, tallySeverity } from "@/lib/severity";
 import { s } from "./styles";
 
 export function SeverityCounters({
@@ -18,13 +18,7 @@ export function SeverityCounters({
   selected: Severity | null;
   onSelect: (severity: Severity | null) => void;
 }) {
-  const counts = React.useMemo(() => {
-    const c: Record<Severity, number> = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
-    for (const f of findings) {
-      if (!f.dismissed_at && f.severity in c) c[f.severity as Severity]++;
-    }
-    return c;
-  }, [findings]);
+  const counts = React.useMemo(() => tallySeverity(findings), [findings]);
 
   return (
     <div style={s.severityCounters}>

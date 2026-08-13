@@ -13,8 +13,8 @@ import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
  * composes them so its public API stays identical.
  */
 
-import type { FindingRow, PullRow } from '../../db/rows.js';
-export type { FindingRow, PullRow };
+import type { FindingRow, PullRow, RepoRow } from '../../db/rows.js';
+export type { FindingRow, PullRow, RepoRow };
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
 
@@ -25,13 +25,19 @@ import * as pullRepo from './repository/pull.repo.js';
 export class ReviewRepository {
   constructor(private db: Db) {}
 
+  /** Run `fn` against a repository bound to one DB transaction — all writes
+   *  inside `fn` commit or roll back together. */
+  async withTransaction<T>(fn: (repo: ReviewRepository) => Promise<T>): Promise<T> {
+    return this.db.transaction(async (tx) => fn(new ReviewRepository(tx)));
+  }
+
   // ---- PR lookup (workspace-scoped) --------------------------------------
 
   getPull(workspaceId: string, prId: string): Promise<PullRow | undefined> {
     return pullRepo.getPull(this.db, workspaceId, prId);
   }
 
-  getRepo(repoId: string): Promise<typeof t.repos.$inferSelect | undefined> {
+  getRepo(repoId: string): Promise<RepoRow | undefined> {
     return pullRepo.getRepo(this.db, repoId);
   }
 

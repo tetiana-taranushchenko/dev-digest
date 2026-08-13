@@ -2,11 +2,13 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, CircularScore, SeverityBadge, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit, FindingRecord, Severity } from "@devdigest/shared";
+import { Badge, Icon, CircularScore, SeverityBadge } from "@devdigest/ui";
+import type { RunSummary, PrCommit, FindingRecord } from "@devdigest/shared";
 import { formatCost, formatTokenCount } from "@/lib/format";
-import { SEVERITY_ORDER } from "@/lib/severity";
+import { SEVERITY_ORDER, tallySeverity } from "@/lib/severity";
 import { FindingsPopover } from "@/components/findings-popover";
+import { outcomeOf, tsOf, type TimelineItem } from "./helpers";
+import { s } from "./styles";
 
 const EMPTY_FINDINGS: FindingRecord[] = [];
 
@@ -18,14 +20,19 @@ const RunFindingsSummary = React.memo(function RunFindingsSummary({
   findings,
   findingsCount,
   blockers,
+  repoFullName,
+  headSha,
+  onGoToFinding,
 }: {
   findings: FindingRecord[];
   findingsCount: number | null;
   blockers: number | null;
+  repoFullName?: string | null;
+  headSha?: string | null;
+  onGoToFinding?: (findingId: string) => void;
 }) {
   const t = useTranslations("prReview");
-  const counts: Record<Severity, number> = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
-  for (const f of findings) if (!f.dismissed_at && f.severity in counts) counts[f.severity as Severity]++;
+  const counts = tallySeverity(findings);
   const nonZero = SEVERITY_ORDER.filter((sev) => counts[sev] > 0);
 
   if (nonZero.length === 0) {
@@ -43,6 +50,9 @@ const RunFindingsSummary = React.memo(function RunFindingsSummary({
       items={findings}
       total={total}
       heading={`${total} finding${total === 1 ? "" : "s"} in this run`}
+      repoFullName={repoFullName}
+      headSha={headSha}
+      onFindingClick={onGoToFinding}
       trigger={nonZero.map((sev) => (
         <SeverityBadge key={sev} severity={sev} count={counts[sev]} compact />
       ))}
@@ -62,80 +72,16 @@ const RunFindingsSummary = React.memo(function RunFindingsSummary({
  * matches the CI gate (deterministic) rather than the model's verdict.
  */
 
-type Outcome = { key: string; color: string; bg: string; icon: IconName };
-
-function outcomeOf(run: RunSummary): Outcome {
-  const status = run.status ?? "";
-  if (status === "running")
-    return { key: "running", color: "var(--accent)", bg: "var(--accent-bg)", icon: "RefreshCw" };
-  if (status === "failed")
-    return { key: "error", color: "var(--crit)", bg: "var(--crit-bg)", icon: "XCircle" };
-  if (status === "cancelled")
-    return { key: "cancelled", color: "var(--text-muted)", bg: "var(--bg-hover)", icon: "X" };
-  // Settled ("done"): color by the deterministic outcome.
-  if ((run.blockers ?? 0) > 0)
-    return { key: "rejected", color: "var(--crit)", bg: "var(--crit-bg)", icon: "XCircle" };
-  if ((run.findings_count ?? 0) > 0)
-    return { key: "reviewed", color: "var(--warn)", bg: "var(--warn-bg)", icon: "MessageSquare" };
-  return { key: "approved", color: "var(--ok)", bg: "var(--ok-bg)", icon: "CheckCircle" };
-}
-
-const rowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  width: "100%",
-  padding: "10px 14px",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  background: "var(--bg-elevated)",
-  textAlign: "left",
-};
-
-const iconBtnStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 4,
-  borderRadius: 5,
-  border: "1px solid var(--border)",
-  background: "var(--bg-surface)",
-  color: "var(--text-muted)",
-  cursor: "pointer",
-  flexShrink: 0,
-};
-
-// Commits are markers, not actions — lighter (dashed, transparent) so they read
-// as separators between the runs they sit chronologically between.
-const commitRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  width: "100%",
-  padding: "8px 14px",
-  borderRadius: 8,
-  border: "1px dashed var(--border)",
-  background: "transparent",
-};
-
-type TimelineItem =
-  | { kind: "run"; ts: number; run: RunSummary }
-  | { kind: "commit"; ts: number; commit: PrCommit };
-
-/** Epoch ms for sorting; unparseable / missing timestamps sort last. */
-function tsOf(s: string | null | undefined): number {
-  if (!s) return 0;
-  const n = Date.parse(s);
-  return Number.isNaN(n) ? 0 : n;
-}
-
 export function RunHistory({
   runs,
   commits = [],
   findingsByRunId,
   onOpenTrace,
   onGoToReview,
+  onGoToFinding,
   onDelete,
+  repoFullName,
+  headSha,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
@@ -145,7 +91,12 @@ export function RunHistory({
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
   onGoToReview?: (runId: string) => void;
+  /** Jump to a specific finding's card below (clicking a finding in the popover). */
+  onGoToFinding?: (findingId: string) => void;
   onDelete?: (runId: string) => void;
+  /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
+  repoFullName?: string | null;
+  headSha?: string | null;
 }) {
   const t = useTranslations("prReview");
   if (runs.length === 0 && commits.length === 0) return null;
@@ -165,7 +116,7 @@ export function RunHistory({
         if (item.kind === "commit") {
           const c = item.commit;
           return (
-            <div key={`commit:${c.sha}`} style={commitRowStyle}>
+            <div key={`commit:${c.sha}`} style={s.commitRow}>
               <Icon.GitCommit size={15} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
               <span className="mono" style={{ fontSize: 12, color: "var(--text-secondary)", flexShrink: 0 }}>
                 {c.sha.slice(0, 7)}
@@ -198,7 +149,7 @@ export function RunHistory({
         const o = outcomeOf(r);
         const settled = r.status === "done";
         return (
-          <div key={`run:${r.run_id}`} style={rowStyle}>
+          <div key={`run:${r.run_id}`} style={s.row}>
             <Badge color={o.color} bg={o.bg} icon={o.icon}>
               {t(`runStatus.${o.key}`)}
             </Badge>
@@ -241,6 +192,9 @@ export function RunHistory({
                   findings={findingsByRunId?.get(r.run_id) ?? EMPTY_FINDINGS}
                   findingsCount={r.findings_count}
                   blockers={r.blockers}
+                  repoFullName={repoFullName}
+                  headSha={headSha}
+                  onGoToFinding={onGoToFinding}
                 />
               )}
             </div>
@@ -257,7 +211,7 @@ export function RunHistory({
               title={t("timeline.openTrace")}
               aria-label={t("timeline.openTrace")}
               onClick={() => onOpenTrace(r.run_id)}
-              style={iconBtnStyle}
+              style={s.iconBtn}
             >
               <Icon.FileText size={13} />
             </button>
