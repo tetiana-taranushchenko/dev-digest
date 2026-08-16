@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
+import type { IntentSource } from '@devdigest/shared';
 import { now } from './_shared';
 import { workspaces } from './core';
 import { pullRequests } from './pulls';
@@ -52,6 +53,24 @@ export const prIntent = pgTable('pr_intent', {
   intent: text('intent').notNull(),
   inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  /** Code-derived confidence tier (never model-self-reported) — see REQ-4. */
+  confidence: text('confidence', { enum: ['high', 'medium', 'low'] }).notNull().default('low'),
+  /** Human-readable sentence naming the deciding signals, for the UI tooltip. */
+  confidenceReason: text('confidence_reason'),
+  /** Which signals were available/fetched for this classification. */
+  sources: jsonb('sources').$type<IntentSource[]>().notNull().default(sql`'[]'::jsonb`),
+  /** Classifier provider actually used. */
+  provider: text('provider'),
+  /** Classifier model actually used. */
+  model: text('model'),
+  /** Cache key — recompute when the PR head moves. */
+  headSha: text('head_sha'),
+  tokensIn: integer('tokens_in'),
+  tokensOut: integer('tokens_out'),
+  /** USD cost of this classification; null when unknown. */
+  costUsd: doublePrecision('cost_usd'),
+  durationMs: integer('duration_ms'),
+  generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const prBrief = pgTable('pr_brief', {

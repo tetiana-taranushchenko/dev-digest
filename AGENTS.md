@@ -22,3 +22,4 @@ user asks about FIRST — these are curated and may already answer it — then r
 - Stack, commands, architecture, how to run → read [README.md](README.md)
 - Working inside a package → read that package's `AGENTS.md`: [`server/AGENTS.md`](server/AGENTS.md), [`client/AGENTS.md`](client/AGENTS.md), [`reviewer-core/AGENTS.md`](reviewer-core/AGENTS.md), [`e2e/AGENTS.md`](e2e/AGENTS.md)
 - Agent prompt templates → read [`docs/agent-prompts/`](docs/agent-prompts/)
+- Custom subagent roster and usage → read [`.claude/agents/README.md`](.claude/agents/README.md)

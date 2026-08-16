@@ -13,6 +13,49 @@ export const Intent = z.object({
 });
 export type Intent = z.infer<typeof Intent>;
 
+/**
+ * Discrete, code-derived confidence tier for a derived Intent. Never
+ * self-reported by the model (REQ-4) — computed deterministically in
+ * `reviewer-core/src/intent/confidence.ts` from which signals were available.
+ */
+export const IntentConfidence = z.enum(['high', 'medium', 'low']);
+export type IntentConfidence = z.infer<typeof IntentConfidence>;
+
+/** The signal kinds the intent classifier can draw on, in priority order. */
+export const IntentSignal = z.enum([
+  'linked_plan_file',
+  'linked_issue',
+  'external_doc_url',
+  'pr_description',
+  'pr_title',
+  'commit_messages',
+  'changed_paths',
+  'diff',
+]);
+export type IntentSignal = z.infer<typeof IntentSignal>;
+
+/** One signal's availability/fetch outcome, recorded per intent derivation. */
+export const IntentSource = z.object({
+  signal: IntentSignal,
+  fetched: z.boolean(),
+  /** Path/URL/identifier the signal was read from, when applicable. */
+  ref: z.string().nullish(),
+  /** Reason the signal could not be fetched (e.g. `external_url_fetch_not_supported`). */
+  error: z.string().nullish(),
+});
+export type IntentSource = z.infer<typeof IntentSource>;
+
+/** A derived Intent plus the confidence tier, sources, and classifier metadata. */
+export const IntentAssessment = Intent.extend({
+  confidence: IntentConfidence,
+  confidence_reason: z.string(),
+  sources: z.array(IntentSource),
+  provider: z.string(),
+  model: z.string(),
+  generated_at: z.string(),
+});
+export type IntentAssessment = z.infer<typeof IntentAssessment>;
+
 // ---- Blast radius ----
 export const ChangedSymbol = z.object({
   name: z.string(),

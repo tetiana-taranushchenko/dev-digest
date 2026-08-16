@@ -29,6 +29,9 @@ graduated-layering rule.
 | `repo-intel` | Full split | routes, service, repository, `pipeline/`, constants, types | Coordinates multiple data sources (graph, embeddings, ast-grep) |
 | `repos` | Full split | routes, service, repository, constants, helpers | Repo lifecycle (add/remove/clone) has real coordination logic |
 | `pulls` | Full split | routes, service, status (pure helpers) | `GET /repos/:id/pulls` grew real business logic (GitHub sync-on-read, diff-stat backfill, cost-window batching, severity rollup) — graduated from flat per the skill's explicit carve-out; extracted into `service.ts` |
+| `intent` | Full split | routes, service, signals (pure-ish helpers) — reuses `reviews/repository.ts` (`pull.repo.ts`'s `getIntent`/`upsertIntent`/`getPrFiles`), no new repository | Coordinates several data sources (repo clone read, GitHub issue, PR row, commits, diff) and derives a value (confidence tier) before persisting |
+| `skills` | Full split | routes, service, repository, stats.repo, constants, contracts, helpers, injection-scan, extract, fetch-url, community-catalog | CRUD + version history plus the trust gate for imported/community skills (untrusted-source detection, injection-risk scan before enabling) |
+| `conventions` | Full split | routes, service, repository, extractor, contracts | Coordinates multiple sources (repo repository, `SkillsService`, `ConventionsExtractor`) and derives grounded convention candidates before turning accepted ones into a skill body |
 | `settings` | Flat | routes, constants, feature-models, helpers | Read/write config + BYO-key test-connection; no cross-source coordination |
 | `polling` | Flat | routes only | Pure trigger-a-sync endpoint |
 | `workspace` | Flat | routes only | Pure CRUD |
