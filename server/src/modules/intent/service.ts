@@ -27,6 +27,29 @@ import type { PinoLike } from '../../platform/run-logger.js';
  * `runLog.step('Deriving PR intent', …, { kind: 'tool' })` without changing
  * anything here.
  */
+/**
+ * Per-PR in-flight-derivation dedup, closing the TOCTOU race between the
+ * cache-check and `derive()` in `ensureForPull` (see the comment at its
+ * call site below for the full trace-through).
+ *
+ * This is deliberately MODULE-level, not an instance field on
+ * `IntentService`. Both call sites (`routes.ts`, `run-executor.ts`)
+ * construct a fresh `IntentService(this.container)` per request/batch — an
+ * instance-level `Map` would only dedup concurrent `ensureForPull` calls
+ * made through the exact same `IntentService` object, which never happens
+ * in practice, so it would silently fail to close the race it exists for.
+ * A module-level `Map` is shared by every `IntentService` instance created
+ * within this Node process, so two concurrent requests for the same `prId`
+ * — regardless of which instance/route/batch they came through — join the
+ * same in-flight `derive()` call. Scoped to this file only (not exported),
+ * so it can't leak into unrelated modules.
+ *
+ * This does NOT dedup across multiple server processes/replicas (e.g. a
+ * horizontally-scaled deployment) — that would need a DB-level advisory
+ * lock or similar, out of scope for this single-process dev/course project.
+ */
+const inFlightDerivations = new Map<string, Promise<PrIntentRecord>>();
+
 export class IntentService {
   private repo: ReviewRepository;
 
@@ -88,7 +111,30 @@ export class IntentService {
       }
     }
 
-    return this.derive(workspaceId, pull, repo, opts.logger, opts.diff);
+    // TOCTOU guard: the cache-check above (and `force`) can both let two
+    // concurrent callers reach this point for the same `prId` before either
+    // has persisted anything. Join an already-running derivation instead of
+    // starting a second one. The `.get()` check and `.set()` below have no
+    // `await` between them, so no other call can interleave in that window
+    // — this is what actually closes the race (see the module-level `Map`
+    // comment above for why it must be module-, not instance-, scoped).
+    const inFlight = inFlightDerivations.get(prId);
+    if (inFlight) {
+      opts.logger?.info({ prId }, 'intent: joining in-flight derivation, 0 additional LLM calls');
+      return inFlight;
+    }
+
+    const derivation = this.derive(workspaceId, pull, repo, opts.logger, opts.diff);
+    inFlightDerivations.set(prId, derivation);
+    // Clean up on both success and failure so a later legitimate
+    // re-derivation (head_sha changed, or another force-recompute) isn't
+    // permanently blocked by a resolved/rejected entry. `.catch()` here
+    // only swallows the rejection on THIS secondary listener (created for
+    // cleanup bookkeeping) so Node doesn't flag it as unhandled — the
+    // original `derivation` promise returned below still rejects normally
+    // for whoever awaits `ensureForPull`.
+    derivation.finally(() => inFlightDerivations.delete(prId)).catch(() => {});
+    return derivation;
   }
 
   /** Gather signals → classify (cheap model) → derive confidence → persist. */
