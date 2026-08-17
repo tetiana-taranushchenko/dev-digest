@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { LLMProvider, StructuredResult } from '@devdigest/shared';
 import { MockLLMProvider, MockGitClient } from '../../server/src/adapters/mocks.js';
-import { reviewPullRequest } from '../src/index.js';
+import { reviewPullRequest, type PromptAssemblyEvent } from '../src/index.js';
 
 /**
  * Engine-level test for reviewPullRequest (the core lifted out of the server's
@@ -134,5 +134,82 @@ describe('reviewPullRequest (engine)', () => {
     await reviewPullRequest({ systemPrompt: 's', model: 'm', diff, llm: recorder, sessionId: 'sess-abc' });
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
+  });
+
+  it('reports safe prompt metadata before the LLM call, including when the LLM fails', async () => {
+    const promptEvents: PromptAssemblyEvent[] = [];
+    let promptWasReportedBeforeCall = false;
+    const failing: LLMProvider = {
+      id: 'openrouter',
+      async completeStructured() {
+        promptWasReportedBeforeCall = promptEvents.length === 1;
+        throw new Error('provider unavailable');
+      },
+      async listModels() {
+        return [];
+      },
+      async complete() {
+        throw new Error('not used');
+      },
+      async embed() {
+        return [];
+      },
+    };
+    const diff = await new MockGitClient().diff();
+
+    await expect(
+      reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff,
+        llm: failing,
+        onPromptAssembled: (event) => promptEvents.push(event),
+      }),
+    ).rejects.toThrow('provider unavailable');
+
+    expect(promptWasReportedBeforeCall).toBe(true);
+    expect(promptEvents).toHaveLength(1);
+    expect(promptEvents[0]).toMatchObject({
+      callIndex: 1,
+      callCount: 1,
+      mode: 'single-pass',
+      scope: 'whole_diff',
+    });
+    expect(promptEvents[0]!.summary.sections).toEqual(
+      expect.arrayContaining([expect.objectContaining({ section: 'diff', source: 'unified diff' })]),
+    );
+  });
+
+  it('reports one actual prompt per file in map-reduce mode', async () => {
+    const clean = { verdict: 'approve', summary: 'looks good', score: 100, findings: [] };
+    const llm = new MockLLMProvider('openai', { structured: clean });
+    const diff = await new MockGitClient({
+      diff:
+        'diff --git a/src/a.ts b/src/a.ts\n' +
+        '--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1 +1 @@\n-oldA\n+newA\n' +
+        'diff --git a/src/b.ts b/src/b.ts\n' +
+        '--- a/src/b.ts\n+++ b/src/b.ts\n@@ -1 +1 @@\n-oldB\n+newB',
+    }).diff();
+    const promptEvents: PromptAssemblyEvent[] = [];
+
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'reviewer',
+      model: 'm',
+      diff,
+      llm,
+      strategy: 'map-reduce',
+      onPromptAssembled: (event) => promptEvents.push(event),
+    });
+
+    expect(outcome.mode).toBe('map-reduce');
+    expect(promptEvents).toHaveLength(2);
+    expect(promptEvents.map((event) => event.callIndex)).toEqual([1, 2]);
+    expect(promptEvents.every((event) => event.callCount === 2)).toBe(true);
+    expect(promptEvents.every((event) => event.scope === 'file')).toBe(true);
+    expect(
+      promptEvents.every((event) =>
+        event.summary.sections.some((section) => section.section === 'diff' && section.chars > 0),
+      ),
+    ).toBe(true);
   });
 });

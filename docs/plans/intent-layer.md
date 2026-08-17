@@ -159,7 +159,7 @@ instruction line is delimiter-wrapped with `wrapUntrusted()`.
 | 5 | `pr_title` | `pull_requests.title` | Fetched | 300 |
 | 6 | `commit_messages` | `pr_commits` rows for the PR (subject lines only, newest 30) | Fetched | 2 000 |
 | 7 | `changed_paths` | `pr_files.path` (+ additions/deletions), capped at 100 paths | Fetched | 2 000 |
-| 8 | `diff` | `UnifiedDiff.raw`, already loaded as shared pre-work by the run executor; truncated hard | Fetched | 12 000 |
+| 8 | `diff` | `UnifiedDiff.raw`, already loaded as shared pre-work by the run executor; reduced to file/hunk headers only (`diff --git`/`+++`/`--- `/`@@ ... @@`), no `+`/`-` code body | Fetched | 2 000 |
 
 Priority is expressed to the model as an explicit ranking line in the system
 prompt ("when signals conflict, prefer the linked plan/spec, then the linked

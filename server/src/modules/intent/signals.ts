@@ -21,7 +21,8 @@ const MAX_PATHS = 100;
  *  prompt budget so we never hold a huge file in memory just to truncate it
  *  downstream. */
 const PLAN_FILE_READ_CAP = 20_000;
-/** Defensive cap for the diff — generous vs. its 12 000 char prompt budget. */
+/** Defensive read cap applied before hunk-header extraction — generous vs.
+ *  its 2 000 char prompt budget (headers only, never the diff body). */
 const DIFF_READ_CAP = 50_000;
 
 /** In-repo markdown plan/spec path pattern (`docs/plans/foo.md`, `specs/*.md`). */
@@ -189,6 +190,17 @@ async function gatherCommitMessages(container: Container, prId: string): Promise
   };
 }
 
+/** Rank 8 — file headers (`diff --git`/`+++`) and hunk headers (`@@ ... @@`)
+ *  only; drops every `+`/`-`/context content line so the classifier sees
+ *  *where* the diff touched, never the changed code itself (§1). */
+function extractHunkHeaders(raw: string): string {
+  const HEADER_RE = /^(diff --git |\+\+\+ |--- |@@ )/;
+  return raw
+    .split('\n')
+    .filter((line) => HEADER_RE.test(line))
+    .join('\n');
+}
+
 /** Rank 7 — changed file paths (+ additions/deletions), capped at 100. */
 async function gatherChangedPaths(container: Container, prId: string): Promise<ResolvedSignal> {
   const files = await container.reviewRepo.getPrFiles(prId);
@@ -236,7 +248,7 @@ export async function gatherIntentSignals(
   const diffSignal: ResolvedSignal = {
     signal: 'diff',
     fetched: diff.raw.trim().length > 0,
-    content: diff.raw.slice(0, DIFF_READ_CAP),
+    content: extractHunkHeaders(diff.raw.slice(0, DIFF_READ_CAP)),
   };
 
   const resolved: ResolvedSignal[] = [

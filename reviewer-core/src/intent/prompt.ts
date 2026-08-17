@@ -48,7 +48,7 @@ const SIGNAL_CHAR_BUDGETS: Record<IntentSignal, number> = {
   pr_title: 300,
   commit_messages: 2_000,
   changed_paths: 2_000,
-  diff: 12_000,
+  diff: 2_000,
 };
 
 const SYSTEM_PROMPT =

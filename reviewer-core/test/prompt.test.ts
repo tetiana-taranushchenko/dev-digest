@@ -64,3 +64,52 @@ describe('assemblePrompt — ## PR description', () => {
     expect((assembly.pr_description as string).length).toBe(4000);
   });
 });
+
+describe('assemblePrompt — safe structured logging metadata', () => {
+  it('returns section names, static sources, character counts, and the real prompt total', () => {
+    const { assembly, summary } = assemblePrompt({
+      system: 'SYSTEM_SECRET',
+      diff: 'PRIVATE_DIFF',
+      prDescription: 'PRIVATE_DESCRIPTION',
+      specs: ['PRIVATE_SPEC'],
+      intent: {
+        intent: 'PRIVATE_INTENT',
+        in_scope: ['one'],
+        out_of_scope: ['two'],
+        confidence: 'low',
+        signals: ['pr_title'],
+      },
+    });
+
+    const bySection = new Map(summary.sections.map((section) => [section.section, section]));
+
+    expect(bySection.get('system')).toMatchObject({
+      source: 'agent system prompt + injection guard',
+      chars: assembly.system.length,
+    });
+    expect(bySection.get('intent')?.chars).toBe(assembly.intent?.length);
+    expect(bySection.get('pr_description')?.chars).toBeGreaterThan(
+      assembly.pr_description?.length ?? 0,
+    );
+    expect(bySection.get('diff')).toMatchObject({
+      source: 'unified diff',
+    });
+    expect(bySection.get('diff')?.chars).toBeGreaterThan('PRIVATE_DIFF'.length);
+    expect(summary.promptChars).toBe(assembly.system.length + assembly.user.length);
+  });
+
+  it('never returns prompt content and omits absent sections', () => {
+    const { summary } = assemblePrompt({
+      system: 'sk-super-secret',
+      diff: 'PRIVATE_DIFF_BODY',
+      specs: ['PRIVATE_SPEC_BODY'],
+    });
+
+    const serialized = JSON.stringify(summary);
+    expect(serialized).not.toContain('sk-super-secret');
+    expect(serialized).not.toContain('PRIVATE_DIFF_BODY');
+    expect(serialized).not.toContain('PRIVATE_SPEC_BODY');
+    expect(serialized).not.toContain('pr_description');
+    expect(summary.sections.some((section) => section.section === 'diff')).toBe(true);
+  });
+});

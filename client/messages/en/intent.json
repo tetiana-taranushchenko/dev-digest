@@ -29,8 +29,8 @@
     "deriveFailed": "Couldn't derive this PR's intent. Try again."
   },
   "recompute": {
-    "cta": "Re-derive",
-    "ariaLabel": "Re-derive this PR's intent"
+    "cta": "Recompute",
+    "ariaLabel": "Recompute this PR's intent"
   },
   "error": {
     "body": "Couldn't load this PR's intent."

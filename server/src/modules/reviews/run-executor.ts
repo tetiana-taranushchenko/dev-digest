@@ -1,6 +1,11 @@
 import type { Container } from '../../platform/container.js';
 import type { PrIntentRecord, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers, wrapUntrusted, type IntentPromptSlot } from '@devdigest/reviewer-core';
+import {
+  reviewPullRequest,
+  countBlockers,
+  wrapUntrusted,
+  type IntentPromptSlot,
+} from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow, RepoRow } from './repository.js';
@@ -8,6 +13,7 @@ import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 import { IntentService } from '../intent/service.js';
+import { logPromptAssembly } from './prompt-logging.js';
 
 /**
  * Map the persisted `PrIntentRecord` (server-side, includes provider/model/
@@ -163,7 +169,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog, intent);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog, intent, logger);
         logger?.info(
           {
             runId,
@@ -196,6 +202,7 @@ export class ReviewRunExecutor {
     runId: string,
     parentLog: RunLogger,
     intent: IntentPromptSlot | undefined,
+    logger?: Logger,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -284,6 +291,16 @@ export class ReviewRunExecutor {
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
+        // Emitted for EVERY actual LLM prompt (one in single-pass, one per file
+        // in map-reduce) immediately after assembly and BEFORE the request. A
+        // provider failure therefore cannot erase the prompt-assembly record.
+        onPromptAssembled: (event) =>
+          logPromptAssembly(logger, {
+            runId,
+            model: agent.model,
+            verbose: this.container.config.promptLogVerbose,
+            event,
+          }),
         checkCancelled: () => {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },

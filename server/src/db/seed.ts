@@ -212,6 +212,28 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         confidence: 0.86,
       },
     ]);
+
+    // seeded intent assessment — lets e2e assert the loaded INTENT panel
+    // without triggering a real classifier call (README: "nothing triggers
+    // a model call"); headSha matches pr.headSha so it reads as complete/cached.
+    await db.insert(t.prIntent).values({
+      prId: pr!.id,
+      intent: 'Add token-bucket rate limiting to public API endpoints to block abuse from unauthenticated clients.',
+      inScope: ['Rate-limit middleware for public endpoints', 'Config for limiter thresholds'],
+      outOfScope: ['Authenticated-endpoint limits', 'Distributed/multi-instance rate limiting'],
+      confidence: 'medium',
+      confidenceReason: 'PR description gives a clear, sufficiently detailed statement of intent.',
+      sources: [
+        { signal: 'pr_description', fetched: true },
+        { signal: 'pr_title', fetched: true },
+        { signal: 'commit_messages', fetched: true },
+        { signal: 'changed_paths', fetched: true },
+        { signal: 'diff', fetched: true },
+      ],
+      provider: 'seed',
+      model: 'seed',
+      headSha: pr!.headSha,
+    });
   }
 
   // ---- built-in agents (the three starter presets) ----

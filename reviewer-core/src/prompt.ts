@@ -117,6 +117,24 @@ export interface PromptParts {
 export interface AssembledPrompt {
   messages: ChatMessage[];
   assembly: PromptAssembly;
+  /** Content-free metrics captured while the actual prompt is assembled. */
+  summary: PromptAssemblySummary;
+}
+
+/**
+ * Safe, structured summary of ONE rendered prompt section. It deliberately
+ * contains no section text: only a stable name/source and character count.
+ */
+export interface PromptSectionSummary {
+  section: string;
+  source: string;
+  chars: number;
+}
+
+export interface PromptAssemblySummary {
+  sections: PromptSectionSummary[];
+  /** Actual final prompt size: system message + fully assembled user message. */
+  promptChars: number;
 }
 
 /**
@@ -126,6 +144,13 @@ export interface AssembledPrompt {
  */
 export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   const system = `${parts.system}\n\n${INJECTION_GUARD}`;
+  const sectionSummaries: PromptSectionSummary[] = [
+    {
+      section: 'system',
+      source: 'agent system prompt + injection guard',
+      chars: system.length,
+    },
+  ];
 
   const skillsBlock =
     parts.skills && parts.skills.length > 0 ? parts.skills.join('\n\n') : undefined;
@@ -146,23 +171,40 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   const intentBlock = parts.intent ? renderIntentSection(parts.intent) : undefined;
 
   const userSections: string[] = [];
-  if (parts.task) userSections.push(parts.task);
+  const addUserSection = (section: string, source: string, rendered: string) => {
+    userSections.push(rendered);
+    sectionSummaries.push({ section, source, chars: rendered.length });
+  };
+
+  if (parts.task) addUserSection('task', 'review task metadata', parts.task);
   if (prDescription) {
-    userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
+    addUserSection(
+      'pr_description',
+      'PR description',
+      `## PR description\n${wrapUntrusted('pr-description', prDescription)}`,
+    );
   }
-  if (intentBlock) userSections.push(intentBlock);
-  if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
-  if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
+  if (intentBlock) addUserSection('intent', 'intent layer', intentBlock);
+  if (skillsBlock) addUserSection('skills', 'linked skills', `## Skills / rules\n${skillsBlock}`);
+  if (memoryBlock) addUserSection('memory', 'memory', `## Relevant memory\n${memoryBlock}`);
   if (parts.repoMap && parts.repoMap.trim().length > 0) {
-    userSections.push(`## Repo skeleton\n${wrapUntrusted('repo-map', parts.repoMap)}`);
+    addUserSection(
+      'repo_map',
+      'repo-intel: repo map',
+      `## Repo skeleton\n${wrapUntrusted('repo-map', parts.repoMap)}`,
+    );
   }
-  if (specsBlock) userSections.push(`## Project context\n${specsBlock}`);
+  if (specsBlock) {
+    addUserSection('specs', 'project specifications', `## Project context\n${specsBlock}`);
+  }
   if (parts.callers && parts.callers.trim().length > 0) {
-    userSections.push(
+    addUserSection(
+      'callers',
+      'repo-intel: callers digest',
       `## Callers of changed symbols\n${wrapUntrusted('callers', parts.callers)}`,
     );
   }
-  userSections.push(`## Diff to review\n${wrapUntrusted('diff', parts.diff)}`);
+  addUserSection('diff', 'unified diff', `## Diff to review\n${wrapUntrusted('diff', parts.diff)}`);
 
   const user = userSections.join('\n\n');
 
@@ -183,5 +225,14 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
     user,
   };
 
-  return { messages, assembly };
+  return {
+    messages,
+    assembly,
+    summary: {
+      sections: sectionSummaries,
+      // Section separators are present in `user` but not in individual section
+      // lengths, so calculate the exact total from the final rendered messages.
+      promptChars: system.length + user.length,
+    },
+  };
 }
