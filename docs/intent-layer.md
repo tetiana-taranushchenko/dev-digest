@@ -66,28 +66,36 @@ Recompute action.
 (`client/src/app/repos/[repoId]/pulls/[number]/_components/IntentPanel/IntentPanel.tsx:35-116`,
 `client/src/app/repos/[repoId]/pulls/[number]/_components/IntentPanel/_components/ConfidenceBadge/ConfidenceBadge.tsx:24-30`)
 
-Use **Sync from GitHub** after changing a PR description on GitHub: the header
-calls the manual `POST /repos/:id/poll` mutation, then invalidates PR-list and
-PR-detail queries; the resulting detail refetch replaces persisted files and
-commits and writes the current body.
+Opening or reloading the PR detail page already refreshes `body`, `commits`,
+and `files` from GitHub on every visit — no button needed.
+(`server/src/modules/pulls/routes.ts:47-93`, `client/src/lib/hooks/core.ts:136-142`)
+**Sync from GitHub** exists for the fields that read does *not* touch:
+`title`, `head_sha`, and `status`. The header's button calls the manual
+`POST /repos/:id/poll` mutation, then invalidates PR-list and PR-detail
+queries.
 (`client/src/app/repos/[repoId]/pulls/[number]/_components/PrDetailHeader/PrDetailHeader.tsx:40-56`,
 `client/src/app/repos/[repoId]/pulls/[number]/_components/PrDetailHeader/PrDetailHeader.tsx:111-119`,
-`client/src/lib/hooks/core.ts:109-120`, `server/src/modules/polling/routes.ts:9-20`,
-`server/src/modules/pulls/routes.ts:47-95`)
+`server/src/modules/polling/routes.ts:9-20,49-57`)
+The PR-list page also re-syncs `head_sha` on its own every 60s and on window
+focus, but only while that page is mounted — sitting on the PR detail page
+does not benefit from it.
+(`client/src/lib/hooks/core.ts:124-134`)
 
-The explicit refresh matters because intent reads the persisted PR body,
-commit rows, and changed-file rows; without a refresh, the currently cached
-local inputs can remain older than GitHub.
-(`server/src/modules/intent/signals.ts:178-202`,
-`server/src/modules/intent/signals.ts:210-250`, `client/src/lib/hooks/core.ts:109-120`)
+The two actions matter for two different GitHub edits:
 
-After syncing a description-only edit, use **Recompute**: the normal review path
-reuses a complete assessment while its stored `head_sha` matches the PR, whereas
-the panel's POST action calls `classify()` with `force: true` and therefore does
-not require a new commit.
-(`server/src/modules/intent/service.ts:73-83`,
-`client/src/app/repos/[repoId]/pulls/[number]/_components/IntentPanel/IntentPanel.tsx:89-98`,
-`client/src/lib/hooks/intent.ts:18-23`)
+- **A new commit** changes `head_sha` on GitHub, but the detail-page read
+  above never touches `head_sha` — so, while sitting on the PR detail page,
+  press **Sync from GitHub** to pick it up. Once the local `head_sha` changes,
+  the normal review path detects the mismatch and reclassifies intent on the
+  next run automatically; **Recompute** is not needed for this case.
+  (`server/src/modules/intent/service.ts:106-110`)
+- **A description-only edit** never changes `head_sha`, so the normal review
+  path keeps reusing the cached assessment even though the detail page already
+  shows the new body. Press **Recompute**: it calls `classify()` with
+  `force: true`, which reclassifies regardless of `head_sha`.
+  (`server/src/modules/intent/service.ts:73-83`,
+  `client/src/app/repos/[repoId]/pulls/[number]/_components/IntentPanel/IntentPanel.tsx:89-98`,
+  `client/src/lib/hooks/intent.ts:18-23`)
 
 ## API
 
@@ -152,9 +160,10 @@ not require a new commit.
 - Show the summary, both scope lists, confidence tooltip, and source statuses.
   (`client/src/app/repos/[repoId]/pulls/[number]/_components/IntentPanel/IntentPanel.tsx:70-116`,
   `client/src/app/repos/[repoId]/pulls/[number]/_components/IntentPanel/_components/ConfidenceBadge/ConfidenceBadge.tsx:24-30`)
-- Edit the PR description on GitHub, press **Sync from GitHub**, then press
-  **Recompute** to bypass the unchanged-`head_sha` cache.
-  (`client/src/app/repos/[repoId]/pulls/[number]/_components/PrDetailHeader/PrDetailHeader.tsx:111-119`,
+- Edit the PR description on GitHub, reload the PR detail page (the new body
+  arrives on its own — no button needed), then press **Recompute** to bypass
+  the unchanged-`head_sha` cache.
+  (`server/src/modules/pulls/routes.ts:47-93`,
   `client/src/app/repos/[repoId]/pulls/[number]/_components/IntentPanel/IntentPanel.tsx:89-98`,
   `server/src/modules/intent/service.ts:73-83`)
 - Run a review and show `Deriving PR intent` in the run log and the non-null
