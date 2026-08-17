@@ -2,6 +2,11 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for IntentPanel (and its ConfidenceBadge / ScopeList subcomponents). */
 export const s = {
+  headerActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  } satisfies CSSProperties,
   summary: {
     fontSize: 15,
     fontStyle: "italic",

@@ -126,6 +126,7 @@ export default function PRDetailPage() {
       <PrDetailHeader
         pr={pr}
         prId={prId}
+        repoId={repoId}
         tab={tab}
         findingsCount={findingsCount}
         githubUrl={repoFullName ? githubPrUrl(repoFullName, pr.number) : null}

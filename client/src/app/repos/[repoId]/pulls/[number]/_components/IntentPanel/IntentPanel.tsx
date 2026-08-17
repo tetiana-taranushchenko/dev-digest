@@ -6,7 +6,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { SectionLabel, EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
+import { SectionLabel, EmptyState, ErrorState, Skeleton, Button } from "@devdigest/ui";
 import { usePrIntent, useClassifyIntent } from "@/lib/hooks";
 import { ApiError } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -79,12 +79,24 @@ export function IntentPanel({ prId }: { prId: string | null }) {
       <SectionLabel
         icon="Target"
         right={
-          <ConfidenceBadge
-            tier={data.confidence}
-            label={confidenceLabel}
-            reason={data.confidence_reason}
-            ariaLabel={t("confidence.aria", { tier: confidenceLabel })}
-          />
+          <div style={s.headerActions}>
+            <ConfidenceBadge
+              tier={data.confidence}
+              label={confidenceLabel}
+              reason={data.confidence_reason}
+              ariaLabel={t("confidence.aria", { tier: confidenceLabel })}
+            />
+            <Button
+              kind="secondary"
+              size="sm"
+              icon="RefreshCw"
+              onClick={deriveIntent}
+              loading={classify.isPending}
+              aria-label={t("recompute.ariaLabel")}
+            >
+              {t("recompute.cta")}
+            </Button>
+          </div>
         }
       >
         {t("title")}
