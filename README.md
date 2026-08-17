@@ -81,7 +81,7 @@ These are intentionally **not** in the starter — each lesson adds one back:
 |--------|-----------|
 | L01 | Run cost badge · severity filter on findings |
 | L02 | Skills in the product · Conventions extractor |
-| L03 | Intent layer · Smart Diff |
+| L03 | [Intent layer](docs/intent-layer.md) · [Smart Diff](docs/smart-diff.md) |
 | L04 | `devdigest-mcp` server · Blast Radius (reads `repo-intel`) |
 | L05 | Project Context Folder · Onboarding generator · PR Brief card |
 | L06 | Eval pipeline · Secret/Phantom gates · Plan Verifier · Export to CI |

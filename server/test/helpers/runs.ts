@@ -16,7 +16,10 @@ export async function waitForPrRuns(
   prId: string,
   opts: { expected?: number; timeoutMs?: number } = {},
 ): Promise<Array<typeof t.agentRuns.$inferSelect>> {
-  const { expected, timeoutMs = 10_000 } = opts;
+  // The full `.it.test` lane starts several Testcontainers suites in parallel;
+  // CI runners can spend more than 10 seconds under CPU/DB contention even
+  // though the same mocked review completes almost immediately in isolation.
+  const { expected, timeoutMs = 30_000 } = opts;
   const start = Date.now();
   for (;;) {
     const runs = await db.select().from(t.agentRuns).where(eq(t.agentRuns.prId, prId));

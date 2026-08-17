@@ -19,7 +19,7 @@
     { "cmd": ["wait", "--text", "Core logic"], "label": "Core logic group renders" },
     { "cmd": ["wait", "--text", "The substance of the change — review closely"], "label": "instructor group description renders" },
     {
-      "cmd": ["eval", "(() => { window.__smartDiffNavigations = []; for (const method of ['pushState', 'replaceState']) { const original = history[method].bind(history); history[method] = (...args) => { window.__smartDiffNavigations.push(String(args[2] ?? location.href)); return original(...args); }; } return 'ready'; })()"],
+      "cmd": ["eval", "(() => { const key = 'devdigest:e2e:smart-diff:navigations'; sessionStorage.setItem(key, '[]'); for (const method of ['pushState', 'replaceState']) { const original = history[method].bind(history); history[method] = (...args) => { const urls = JSON.parse(sessionStorage.getItem(key) ?? '[]'); urls.push(String(args[2] ?? location.href)); sessionStorage.setItem(key, JSON.stringify(urls)); return original(...args); }; } return 'ready'; })()"],
       "label": "observe application routing for the finding click",
       "assert": { "stdoutIncludes": "ready" }
     },
@@ -28,7 +28,7 @@
       "label": "open the exact inline finding"
     },
     {
-      "cmd": ["eval", "(() => window.__smartDiffNavigations?.find((url) => url.includes('tab=findings&finding=')) ?? '')()"],
+      "cmd": ["eval", "(() => JSON.parse(sessionStorage.getItem('devdigest:e2e:smart-diff:navigations') ?? '[]').find((url) => url.includes('tab=findings&finding=')) ?? '')()"],
       "label": "navigate with the exact finding query through application routing",
       "assert": { "stdoutIncludes": "tab=findings&finding=" }
     },
