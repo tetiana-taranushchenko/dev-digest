@@ -28,7 +28,7 @@
       "label": "open the exact inline finding"
     },
     {
-      "cmd": ["eval", "(() => JSON.parse(sessionStorage.getItem('devdigest:e2e:smart-diff:navigations') ?? '[]').find((url) => url.includes('tab=findings&finding=')) ?? '')()"],
+      "cmd": ["eval", "(async () => { const key = 'devdigest:e2e:smart-diff:navigations'; const deadline = Date.now() + 10000; while (Date.now() < deadline) { const match = JSON.parse(sessionStorage.getItem(key) ?? '[]').find((url) => url.includes('tab=findings&finding=')); if (match) return match; await new Promise((resolve) => setTimeout(resolve, 50)); } return ''; })()"],
       "label": "navigate with the exact finding query through application routing",
       "assert": { "stdoutIncludes": "tab=findings&finding=" }
     },
