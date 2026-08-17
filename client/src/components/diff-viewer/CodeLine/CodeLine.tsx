@@ -3,9 +3,10 @@
 "use client";
 
 import React from "react";
+import type { Severity } from "@devdigest/shared";
 import { commentTargetFor, type CommentThread, type DiffCommentApi, cs } from "../comments";
 import { type Line } from "../helpers";
-import { s, lineRowFor, lineSignFor } from "../styles";
+import { findingButtonFor, lineRowFor, lineRowWithFinding, lineSignFor, s } from "../styles";
 import { CommentThreadView } from "../CommentThreadView";
 import { InlineComposer } from "../InlineComposer";
 
@@ -14,11 +15,17 @@ export function CodeLine({
   path,
   threads,
   commenting,
+  findings = [],
+  onFindingClick,
+  findingAriaLabel,
 }: {
   ln: Line;
   path: string;
   threads: CommentThread[];
   commenting?: DiffCommentApi;
+  findings?: readonly DiffLineFinding[];
+  onFindingClick?: (findingId: string) => void;
+  findingAriaLabel?: (finding: DiffLineFinding, path: string, line: number) => string;
 }) {
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
@@ -34,14 +41,20 @@ export function CodeLine({
   const sign = ln.kind === "add" ? "+" : ln.kind === "del" ? "−" : "";
   const target = commenting?.canComment ? commentTargetFor(ln) : null;
   const showAdd = hover && !!target && !composing;
+  const worstSeverity = findings.reduce<Severity | null>((worst, finding) => {
+    if (worst === "CRITICAL" || finding.severity === "CRITICAL") return "CRITICAL";
+    if (worst === "WARNING" || finding.severity === "WARNING") return "WARNING";
+    return "SUGGESTION";
+  }, null);
 
   return (
     <div
       style={cs.rowWrap}
+      data-diff-line={ln.newNo != null ? `${path}:${ln.newNo}` : undefined}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div style={lineRowFor(ln.kind)}>
+      <div style={worstSeverity ? lineRowWithFinding(ln.kind, worstSeverity) : lineRowFor(ln.kind)}>
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
           {showAdd && target && (
             <button
@@ -62,6 +75,25 @@ export function CodeLine({
         <span className="mono" style={s.lineText}>
           {ln.text || " "}
         </span>
+        {findings.length > 0 && ln.newNo != null && (
+          <span style={s.findingRail}>
+            {findings.map((finding) => (
+              <button
+                key={finding.id}
+                type="button"
+                title={finding.title}
+                aria-label={
+                  findingAriaLabel?.(finding, path, ln.newNo!) ??
+                  `Open ${finding.severity.toLowerCase()} finding at ${path}:${ln.newNo}`
+                }
+                style={findingButtonFor(finding.severity)}
+                onClick={() => onFindingClick?.(finding.id)}
+              >
+                {finding.severity.toLowerCase()}
+              </button>
+            ))}
+          </span>
+        )}
       </div>
 
       {commenting &&
@@ -81,4 +113,10 @@ export function CodeLine({
       )}
     </div>
   );
+}
+
+export interface DiffLineFinding {
+  id: string;
+  severity: Severity;
+  title: string;
 }

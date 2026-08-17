@@ -160,6 +160,7 @@ export default function PRDetailPage() {
             onRunDone={() => {
               invalidateActiveRuns();
               invalidateRunHistory();
+              if (prId) qc.invalidateQueries({ queryKey: ["pr-smart-diff", prId] });
               refetchReviews();
             }}
           />
@@ -168,8 +169,14 @@ export default function PRDetailPage() {
         {tab === "diff" && (
           <DiffTab
             prId={prId}
+            repoId={repoId}
+            prNumber={pr.number}
             filesCount={pr.files_count}
+            additions={pr.additions}
+            deletions={pr.deletions}
             files={pr.files}
+            reviews={runs}
+            runs={prRuns ?? []}
             canComment={pr.status === "open"}
           />
         )}

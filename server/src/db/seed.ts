@@ -159,7 +159,15 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     await db.insert(t.prFiles).values([
       { prId: pr!.id, path: 'src/middleware/ratelimit.ts', additions: 84, deletions: 0 },
       { prId: pr!.id, path: 'src/api/public/webhooks.ts', additions: 31, deletions: 6 },
-      { prId: pr!.id, path: 'src/config.ts', additions: 4, deletions: 0 },
+      {
+        prId: pr!.id,
+        path: 'src/config.ts',
+        additions: 4,
+        deletions: 0,
+        // The existing seeded finding cites new-side line 12. Keep a real,
+        // non-secret patch so Smart Diff e2e can anchor its inline marker.
+        patch: '@@ -11,1 +11,2 @@\n   redisUrl: process.env.REDIS_URL,\n+  stripeKey: "sk_test_redacted",',
+      },
       { prId: pr!.id, path: 'src/api/users.ts', additions: 7, deletions: 2 },
     ]);
 

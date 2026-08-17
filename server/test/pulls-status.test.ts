@@ -101,3 +101,23 @@ describe('rankFindingsForPreview', () => {
     expect(rankFindingsForPreview([], 5)).toEqual([]);
   });
 });
+
+describe('latestPerAgent', () => {
+  it('keeps each agent latest review, preserves the first equal-time row, and leaves null-agent reviews independent', () => {
+    const rows = [
+      { id: 'agent-a-first', prId: 'pr-1', agentId: 'agent-a', createdAt: '2026-01-02T00:00:00Z' },
+      { id: 'agent-a-equal', prId: 'pr-1', agentId: 'agent-a', createdAt: '2026-01-02T00:00:00Z' },
+      { id: 'agent-b-old', prId: 'pr-1', agentId: 'agent-b', createdAt: '2026-01-01T00:00:00Z' },
+      { id: 'agent-b-new', prId: 'pr-1', agentId: 'agent-b', createdAt: '2026-01-03T00:00:00Z' },
+      { id: 'legacy-a', prId: 'pr-1', agentId: null, createdAt: '2026-01-01T00:00:00Z' },
+      { id: 'legacy-b', prId: 'pr-1', agentId: null, createdAt: '2026-01-03T00:00:00Z' },
+    ];
+
+    expect([...latestPerAgent(rows)]).toEqual([
+      'agent-a-first',
+      'agent-b-new',
+      'legacy-a',
+      'legacy-b',
+    ]);
+  });
+});

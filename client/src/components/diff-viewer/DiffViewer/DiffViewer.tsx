@@ -14,9 +14,15 @@ import { FileCard } from "../FileCard";
 export function DiffViewer({
   files,
   commenting,
+  emphasizeLargeFiles = false,
+  largeFileLabel,
+  largeFileAriaLabel,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
+  emphasizeLargeFiles?: boolean;
+  largeFileLabel?: string;
+  largeFileAriaLabel?: (file: PrFile, changedLines: number) => string;
 }) {
   const t = useTranslations("shell");
   if (!files || files.length === 0) {
@@ -25,7 +31,14 @@ export function DiffViewer({
   return (
     <div style={s.list}>
       {files.map((f, i) => (
-        <FileCard key={i} file={f} commenting={commenting} />
+        <FileCard
+          key={i}
+          file={f}
+          commenting={commenting}
+          emphasizeLarge={emphasizeLargeFiles}
+          largeFileLabel={largeFileLabel}
+          largeFileAriaLabel={largeFileAriaLabel?.(f, (f.additions ?? 0) + (f.deletions ?? 0))}
+        />
       ))}
     </div>
   );

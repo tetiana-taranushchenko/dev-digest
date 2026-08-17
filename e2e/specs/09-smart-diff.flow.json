@@ -1,0 +1,38 @@
+{
+  "name": "Smart Diff switches from original order and opens the exact seeded finding",
+  "description": "From seeded PR #482, verify Original order is the default, opt into Smart order, then use the exact inline CRITICAL marker on src/config.ts:12 to navigate through the app router to its existing FindingCard. Read-only seeded data; no review/model call and no AI locator.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the seeded PR" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Files changed"], "label": "open Files changed" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "diff tab is active" },
+    {
+      "cmd": ["eval", "(() => Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Original order')?.getAttribute('aria-pressed'))()"],
+      "label": "Original order is selected by default",
+      "assert": { "stdoutIncludes": "true" }
+    },
+    { "cmd": ["wait", "--text", "src/config.ts"], "label": "original file list is visible" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Smart order"], "label": "activate Smart order" },
+    { "cmd": ["wait", "--text", "Core logic"], "label": "Core logic group renders" },
+    { "cmd": ["wait", "--text", "The substance of the change — review closely"], "label": "instructor group description renders" },
+    {
+      "cmd": ["eval", "(() => { window.__smartDiffNavigations = []; for (const method of ['pushState', 'replaceState']) { const original = history[method].bind(history); history[method] = (...args) => { window.__smartDiffNavigations.push(String(args[2] ?? location.href)); return original(...args); }; } return 'ready'; })()"],
+      "label": "observe application routing for the finding click",
+      "assert": { "stdoutIncludes": "ready" }
+    },
+    {
+      "cmd": ["find", "role", "button", "click", "--name", "Open critical finding Hardcoded Stripe secret key in commit at src/config.ts:12"],
+      "label": "open the exact inline finding"
+    },
+    {
+      "cmd": ["eval", "(() => window.__smartDiffNavigations?.find((url) => url.includes('tab=findings&finding=')) ?? '')()"],
+      "label": "navigate with the exact finding query through application routing",
+      "assert": { "stdoutIncludes": "tab=findings&finding=" }
+    },
+    { "cmd": ["wait", "--url", "tab=findings"], "label": "navigate to Agent runs through application routing" },
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "the exact FindingCard is visible" }
+  ]
+}

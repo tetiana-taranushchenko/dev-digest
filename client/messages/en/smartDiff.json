@@ -1,0 +1,35 @@
+{
+  "mode": {
+    "label": "Diff order",
+    "smart": "Smart order",
+    "original": "Original order"
+  },
+  "groups": {
+    "core": {
+      "title": "Core logic",
+      "description": "The substance of the change — review closely"
+    },
+    "wiring": {
+      "title": "Wiring",
+      "description": "Configuration and integration points"
+    },
+    "boilerplate": {
+      "title": "Boilerplate",
+      "description": "Generated and low-signal files"
+    },
+    "fileCount": "{count, plural, one {# file} other {# files}}"
+  },
+  "finding": {
+    "fileCount": "{count, plural, one {# finding} other {# findings}}",
+    "ariaLabel": "Open {severity} finding {title} at {path}:{line}"
+  },
+  "largeFile": {
+    "label": "Large file",
+    "ariaLabel": "Large file {path}: {lines} changed lines"
+  },
+  "summary": {
+    "files": "{count, plural, one {# file} other {# files}}"
+  },
+  "tokenStatus": "0 new tokens · built on {tokens, number} from last review",
+  "splitBanner": "This PR is large ({lines} changed lines)"
+}
