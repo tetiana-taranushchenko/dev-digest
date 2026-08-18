@@ -161,6 +161,13 @@ export const SmartDiff = z.object({
     total_lines: z.number().int(),
     proposed_splits: z.array(ProposedSplit),
   }),
+  /**
+   * Sum of input+output tokens across each agent's latest review run.
+   * `null` when there are no latest reviews yet, or any of them lacks a
+   * completed run with known token counts (all-or-nothing — never a partial
+   * total presented as authoritative).
+   */
+  review_tokens: z.number().int().nullable(),
 });
 export type SmartDiff = z.infer<typeof SmartDiff>;
 

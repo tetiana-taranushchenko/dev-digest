@@ -9,7 +9,6 @@ import { Icon } from "@devdigest/ui";
 import type {
   PrFile,
   ReviewRecord,
-  RunSummary,
   SmartDiff,
   SmartDiffGroup,
 } from "@devdigest/shared";
@@ -22,7 +21,6 @@ import { ROLE_DESCRIPTION_KEY, ROLE_ICON, ROLE_TITLE_KEY } from "./constants";
 import {
   buildFileMap,
   projectSmartDiffFindings,
-  tokenTotalForLatestReviews,
   type SmartDiffFindingProjection,
 } from "./helpers";
 import { s } from "./styles";
@@ -30,9 +28,10 @@ import { s } from "./styles";
 export interface SmartDiffViewerProps {
   groups: SmartDiffGroup[];
   splitSuggestion: SmartDiff["split_suggestion"];
+  /** Server-computed (`SmartDiff.review_tokens`) — see `smart-diff/service.ts`. */
+  reviewTokens: SmartDiff["review_tokens"];
   files: PrFile[];
   reviews: ReviewRecord[];
-  runs: RunSummary[];
   commenting?: DiffCommentApi;
   onFindingClick: (findingId: string) => void;
 }
@@ -40,9 +39,9 @@ export interface SmartDiffViewerProps {
 export function SmartDiffViewer({
   groups,
   splitSuggestion,
+  reviewTokens,
   files,
   reviews,
-  runs,
   commenting,
   onFindingClick,
 }: SmartDiffViewerProps) {
@@ -52,17 +51,13 @@ export function SmartDiffViewer({
     () => projectSmartDiffFindings(groups, reviews),
     [groups, reviews],
   );
-  const tokenTotal = React.useMemo(
-    () => tokenTotalForLatestReviews(projection.latestReviews, runs),
-    [projection.latestReviews, runs],
-  );
 
   return (
     <div style={s.container}>
-      {tokenTotal != null && (
+      {reviewTokens != null && (
         <div style={s.tokenStatus}>
           <Icon.Zap size={14} />
-          {t("tokenStatus", { tokens: tokenTotal })}
+          {t("tokenStatus", { tokens: reviewTokens })}
         </div>
       )}
 

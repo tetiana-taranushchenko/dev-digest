@@ -22,6 +22,14 @@ describe('assembleSmartDiff', () => {
     expect(parsed.split_suggestion.total_lines).toBe(0);
     expect(parsed.split_suggestion.too_big).toBe(false);
     expect(parsed.split_suggestion.proposed_splits).toEqual([]);
+    expect(parsed.review_tokens).toBeNull();
+  });
+
+  it('threads the caller-computed reviewTokens straight through (defaults to null when omitted)', () => {
+    const files: SmartDiffInputFile[] = [{ path: 'src/a.ts', additions: 1, deletions: 0 }];
+
+    expect(SmartDiff.parse(assembleSmartDiff(files, new Map())).review_tokens).toBeNull();
+    expect(SmartDiff.parse(assembleSmartDiff(files, new Map(), 250)).review_tokens).toBe(250);
   });
 
   it('does not flag too_big exactly at the SPLIT_TOO_BIG_LINES threshold, but does one line over it', () => {

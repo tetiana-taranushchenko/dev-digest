@@ -8,7 +8,7 @@ import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
 import { useCreatePrComment, usePrComments } from "@/lib/hooks/reviews";
 import { useSmartDiff } from "@/lib/hooks/smart-diff";
 import { notify } from "@/lib/toast";
-import type { PrFile, ReviewRecord, RunSummary } from "@devdigest/shared";
+import type { PrFile, ReviewRecord } from "@devdigest/shared";
 import { SmartDiffViewer } from "../SmartDiffViewer";
 import { buildFindingRoute } from "./helpers";
 
@@ -21,7 +21,6 @@ interface DiffTabProps {
   deletions: number;
   files: PrFile[];
   reviews: ReviewRecord[];
-  runs: RunSummary[];
   /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
   canComment?: boolean;
 }
@@ -35,7 +34,6 @@ export function DiffTab({
   deletions,
   files,
   reviews,
-  runs,
   canComment,
 }: DiffTabProps) {
   const t = useTranslations("smartDiff");
@@ -129,9 +127,9 @@ export function DiffTab({
         <SmartDiffViewer
           groups={smartDiff.groups}
           splitSuggestion={smartDiff.split_suggestion}
+          reviewTokens={smartDiff.review_tokens}
           files={files}
           reviews={reviews}
-          runs={runs}
           commenting={commenting}
           onFindingClick={(findingId) => router.push(buildFindingRoute(repoId, prNumber, findingId))}
         />

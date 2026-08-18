@@ -183,7 +183,6 @@ export default function PRDetailPage() {
             deletions={pr.deletions}
             files={pr.files}
             reviews={runs}
-            runs={prRuns ?? []}
             canComment={pr.status === "open"}
           />
         )}

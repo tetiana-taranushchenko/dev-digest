@@ -2,7 +2,6 @@ import type {
   FindingRecord,
   PrFile,
   ReviewRecord,
-  RunSummary,
   SmartDiffGroup,
 } from "@devdigest/shared";
 
@@ -103,39 +102,6 @@ export function projectSmartDiffFindings(
   }
 
   return { findingsByPath, findingCountByPath, latestReviews };
-}
-
-/**
- * Token provenance is all-or-nothing: one missing/unfinished run suppresses
- * the status rather than presenting a partial total as authoritative.
- */
-export function tokenTotalForLatestReviews(
-  latestReviews: ReviewRecord[],
-  runs: RunSummary[],
-): number | null {
-  if (latestReviews.length === 0) return null;
-  const runsById = new Map(runs.map((run) => [run.run_id, run]));
-  const countedRunIds = new Set<string>();
-  let total = 0;
-
-  for (const review of latestReviews) {
-    if (!review.run_id) return null;
-    const run = runsById.get(review.run_id);
-    if (
-      !run ||
-      run.status !== "done" ||
-      run.tokens_in == null ||
-      run.tokens_out == null
-    ) {
-      return null;
-    }
-    if (!countedRunIds.has(run.run_id)) {
-      countedRunIds.add(run.run_id);
-      total += run.tokens_in + run.tokens_out;
-    }
-  }
-
-  return total;
 }
 
 function timestampOf(value: string): number {

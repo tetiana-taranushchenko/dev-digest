@@ -167,6 +167,137 @@ d('smart-diff module (Testcontainers pg)', () => {
     await app.close();
   });
 
+  describe('review_tokens (service.ts:computeReviewTokens)', () => {
+    it('sums tokens across each latest-review run when every run is done with known counts', async () => {
+      const [repo] = await pg.handle.db
+        .insert(t.repos)
+        .values({ workspaceId, owner: 'acme', name: 'smart-diff-tokens-ok', fullName: 'acme/smart-diff-tokens-ok' })
+        .returning();
+      const [pr] = await pg.handle.db
+        .insert(t.pullRequests)
+        .values({
+          workspaceId,
+          repoId: repo!.id,
+          number: 701,
+          title: 'Tokens scenario — complete run data',
+          author: 'marisa.koch',
+          branch: 'chore/tokens-ok',
+          base: 'main',
+          headSha: 'f00dcafe01',
+          additions: 1,
+          deletions: 0,
+          filesCount: 1,
+          status: 'needs_review',
+        })
+        .returning();
+
+      await pg.handle.db.insert(t.prFiles).values([
+        { prId: pr!.id, path: 'src/tokens-ok.ts', additions: 1, deletions: 0, patch: '@@ -0,0 +1,1 @@\n+line' },
+      ]);
+
+      const [runA] = await pg.handle.db
+        .insert(t.agentRuns)
+        .values({ workspaceId, prId: pr!.id, status: 'done', tokensIn: 100, tokensOut: 50 })
+        .returning();
+      const [runB] = await pg.handle.db
+        .insert(t.agentRuns)
+        .values({ workspaceId, prId: pr!.id, status: 'done', tokensIn: 30, tokensOut: 10 })
+        .returning();
+
+      await pg.handle.db.insert(t.reviews).values([
+        {
+          workspaceId,
+          prId: pr!.id,
+          agentId: '55555555-5555-5555-5555-555555555555',
+          runId: runA!.id,
+          kind: 'review',
+          verdict: 'comment',
+          summary: 'Agent A.',
+          score: 90,
+          model: 'gpt-4.1',
+        },
+        {
+          workspaceId,
+          prId: pr!.id,
+          agentId: '66666666-6666-6666-6666-666666666666',
+          runId: runB!.id,
+          kind: 'review',
+          verdict: 'comment',
+          summary: 'Agent B.',
+          score: 90,
+          model: 'gpt-4.1',
+        },
+      ]);
+
+      const { app: appPromise } = makeApp();
+      const app = await appPromise;
+      const res = await app.inject({ method: 'GET', url: `/pulls/${pr!.id}/smart-diff` });
+      expect(res.statusCode).toBe(200);
+      const smartDiff = SmartDiff.parse(res.json());
+
+      expect(smartDiff.review_tokens).toBe(100 + 50 + 30 + 10);
+
+      await app.close();
+    });
+
+    it('is null when a latest review has no run, or its run is incomplete/not done', async () => {
+      const [repo] = await pg.handle.db
+        .insert(t.repos)
+        .values({ workspaceId, owner: 'acme', name: 'smart-diff-tokens-missing', fullName: 'acme/smart-diff-tokens-missing' })
+        .returning();
+      const [pr] = await pg.handle.db
+        .insert(t.pullRequests)
+        .values({
+          workspaceId,
+          repoId: repo!.id,
+          number: 702,
+          title: 'Tokens scenario — incomplete run data',
+          author: 'marisa.koch',
+          branch: 'chore/tokens-missing',
+          base: 'main',
+          headSha: 'f00dcafe02',
+          additions: 1,
+          deletions: 0,
+          filesCount: 1,
+          status: 'needs_review',
+        })
+        .returning();
+
+      await pg.handle.db.insert(t.prFiles).values([
+        { prId: pr!.id, path: 'src/tokens-missing.ts', additions: 1, deletions: 0, patch: '@@ -0,0 +1,1 @@\n+line' },
+      ]);
+
+      const [stillRunning] = await pg.handle.db
+        .insert(t.agentRuns)
+        .values({ workspaceId, prId: pr!.id, status: 'running', tokensIn: null, tokensOut: null })
+        .returning();
+
+      await pg.handle.db.insert(t.reviews).values([
+        {
+          workspaceId,
+          prId: pr!.id,
+          agentId: '77777777-7777-7777-7777-777777777777',
+          runId: stillRunning!.id,
+          kind: 'review',
+          verdict: 'comment',
+          summary: 'Still running.',
+          score: 90,
+          model: 'gpt-4.1',
+        },
+      ]);
+
+      const { app: appPromise } = makeApp();
+      const app = await appPromise;
+      const res = await app.inject({ method: 'GET', url: `/pulls/${pr!.id}/smart-diff` });
+      expect(res.statusCode).toBe(200);
+      const smartDiff = SmartDiff.parse(res.json());
+
+      expect(smartDiff.review_tokens).toBeNull();
+
+      await app.close();
+    });
+  });
+
   it('404s for an unknown (but valid-uuid) pull request id', async () => {
     const { app: appPromise } = makeApp();
     const app = await appPromise;

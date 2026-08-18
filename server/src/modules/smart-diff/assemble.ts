@@ -121,6 +121,9 @@ function buildProposedSplits(coreAndWiring: SmartDiffInputFile[]): ProposedSplit
 export function assembleSmartDiff(
   files: SmartDiffInputFile[],
   findingsByPath: Map<string, SmartDiffFindingInput[]>,
+  /** Pre-computed by the service (needs the DB-backed run rows) — this
+   *  function stays pure/I/O-free, so it only threads the number through. */
+  reviewTokens: number | null = null,
 ): SmartDiff {
   const classified: ClassifiedFile[] = files.map((file) => ({ file, role: classifyPath(file.path) }));
 
@@ -139,5 +142,6 @@ export function assembleSmartDiff(
       total_lines: totalLines,
       proposed_splits: tooBig ? buildProposedSplits(coreAndWiring) : [],
     },
+    review_tokens: reviewTokens,
   };
 }

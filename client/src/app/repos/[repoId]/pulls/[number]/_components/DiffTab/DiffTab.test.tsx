@@ -51,6 +51,7 @@ const SMART_DATA = {
     },
   ],
   split_suggestion: { too_big: false, total_lines: 1, proposed_splits: [] },
+  review_tokens: null,
 };
 
 function renderDiffTab(overrides: Partial<React.ComponentProps<typeof DiffTab>> = {}) {
@@ -67,7 +68,6 @@ function renderDiffTab(overrides: Partial<React.ComponentProps<typeof DiffTab>> 
           deletions={38}
           files={FILES}
           reviews={[]}
-          runs={[]}
           {...overrides}
         />
       </NextIntlClientProvider>

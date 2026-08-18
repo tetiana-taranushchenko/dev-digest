@@ -3,7 +3,6 @@ import type {
   FindingRecord,
   PrFile,
   ReviewRecord,
-  RunSummary,
   SmartDiffGroup,
 } from "@devdigest/shared";
 
@@ -11,7 +10,6 @@ import {
   buildFileMap,
   projectSmartDiffFindings,
   selectLatestReviewRecords,
-  tokenTotalForLatestReviews,
 } from "./helpers";
 
 function finding(
@@ -200,47 +198,5 @@ describe("Smart Diff finding projection", () => {
 
     expect(ids).toEqual(["critical-z", "critical-a", "warning-new", "suggestion"]);
     expect(projection.findingCountByPath.get("src/core.ts")).toBe(4);
-  });
-});
-
-describe("tokenTotalForLatestReviews", () => {
-  const run = (id: string, overrides: Partial<RunSummary> = {}): RunSummary => ({
-    run_id: id,
-    agent_id: "agent-a",
-    agent_name: "Agent",
-    provider: "test",
-    model: "test",
-    status: "done",
-    error: null,
-    duration_ms: 1,
-    tokens_in: 100,
-    tokens_out: 25,
-    cost_usd: 0,
-    findings_count: 1,
-    grounding: null,
-    ran_at: "2026-01-02T00:00:00Z",
-    score: 80,
-    blockers: 0,
-    ...overrides,
-  });
-
-  it("sums complete latest-review run tokens", () => {
-    const latest = [
-      review("a", "agent-a", "2026-01-02T00:00:00Z", []),
-      review("b", "agent-b", "2026-01-02T00:00:00Z", []),
-    ];
-
-    expect(tokenTotalForLatestReviews(latest, [run("run-a"), run("run-b", { tokens_in: 50, tokens_out: 10 })])).toBe(185);
-  });
-
-  it("suppresses partial or uncorrelated token status", () => {
-    const latest = [review("a", "agent-a", "2026-01-02T00:00:00Z", [])];
-
-    expect(tokenTotalForLatestReviews(latest, [])).toBeNull();
-    expect(tokenTotalForLatestReviews([{ ...latest[0]!, run_id: null }], [run("run-a")])).toBeNull();
-    expect(tokenTotalForLatestReviews(latest, [run("run-a", { tokens_in: null })])).toBeNull();
-    expect(tokenTotalForLatestReviews(latest, [run("run-a", { tokens_out: null })])).toBeNull();
-    expect(tokenTotalForLatestReviews(latest, [run("run-a", { status: "failed" })])).toBeNull();
-    expect(tokenTotalForLatestReviews([], [run("run-a")])).toBeNull();
   });
 });

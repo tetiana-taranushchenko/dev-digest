@@ -123,6 +123,7 @@ describe('AI contracts parse fixtures', () => {
         },
       ],
       split_suggestion: { too_big: false, total_lines: 285, proposed_splits: [] },
+      review_tokens: 125,
     });
     expect(d.groups[0]!.role).toBe('core');
   });

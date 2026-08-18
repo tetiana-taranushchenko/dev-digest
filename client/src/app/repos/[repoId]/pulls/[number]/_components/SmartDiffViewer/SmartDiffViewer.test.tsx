@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { FindingRecord, PrFile, ReviewRecord, RunSummary, SmartDiffGroup } from "@devdigest/shared";
+import type { FindingRecord, PrFile, ReviewRecord, SmartDiffGroup } from "@devdigest/shared";
 import smartDiffMessages from "../../../../../../../../messages/en/smartDiff.json";
 import shellMessages from "../../../../../../../../messages/en/shell.json";
 
@@ -50,33 +50,11 @@ function review(findings: FindingRecord[]): ReviewRecord {
   };
 }
 
-function run(overrides: Partial<RunSummary> = {}): RunSummary {
-  return {
-    run_id: "run-1",
-    agent_id: "agent-1",
-    agent_name: "Reviewer",
-    provider: "test",
-    model: "test",
-    status: "done",
-    error: null,
-    duration_ms: 1,
-    tokens_in: 100,
-    tokens_out: 25,
-    cost_usd: 0,
-    findings_count: 2,
-    grounding: null,
-    ran_at: "2026-01-02T00:00:00Z",
-    score: 80,
-    blockers: 0,
-    ...overrides,
-  };
-}
-
 function renderViewer(args: {
   groups: SmartDiffGroup[];
   files: PrFile[];
   reviews?: ReviewRecord[];
-  runs?: RunSummary[];
+  reviewTokens?: number | null;
   splitSuggestion?: typeof NO_SPLIT;
   onFindingClick?: (id: string) => void;
 }) {
@@ -86,7 +64,7 @@ function renderViewer(args: {
         groups={args.groups}
         files={args.files}
         reviews={args.reviews ?? []}
-        runs={args.runs ?? []}
+        reviewTokens={args.reviewTokens ?? null}
         splitSuggestion={args.splitSuggestion ?? NO_SPLIT}
         onFindingClick={args.onFindingClick ?? vi.fn()}
       />
@@ -164,7 +142,7 @@ describe("SmartDiffViewer", () => {
       { path: "src/core.ts", additions: 1, deletions: 0, patch: "@@ -1,1 +1,2 @@\n context\n+danger" },
     ];
 
-    renderViewer({ groups, files, reviews: [review([warning, critical])], runs: [run()], onFindingClick });
+    renderViewer({ groups, files, reviews: [review([warning, critical])], onFindingClick });
 
     expect(screen.getByText("2 findings")).toBeInTheDocument();
     const row = document.querySelector('[data-diff-line="src/core.ts:2"]') as HTMLElement;
@@ -221,7 +199,7 @@ describe("SmartDiffViewer", () => {
       groups,
       files,
       reviews: [review([])],
-      runs: [run()],
+      reviewTokens: 125,
       splitSuggestion: { too_big: true, total_lines: 451, proposed_splits: [] },
     });
 
@@ -230,7 +208,7 @@ describe("SmartDiffViewer", () => {
     expect(screen.getByLabelText("Large file src/core.ts: 151 changed lines")).toBeInTheDocument();
   });
 
-  it("suppresses token provenance when run data is incomplete", () => {
+  it("omits token provenance when the server has no authoritative review_tokens (e.g. incomplete run data)", () => {
     const groups: SmartDiffGroup[] = [
       { role: "core", files: [{ path: "src/core.ts", pseudocode_summary: null, additions: 1, deletions: 0, line_findings: [] }] },
     ];
@@ -238,7 +216,7 @@ describe("SmartDiffViewer", () => {
       { path: "src/core.ts", additions: 1, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+core" },
     ];
 
-    renderViewer({ groups, files, reviews: [review([])], runs: [run({ tokens_out: null })] });
+    renderViewer({ groups, files, reviews: [review([])], reviewTokens: null });
 
     expect(screen.queryByText(/0 new tokens/)).not.toBeInTheDocument();
   });
