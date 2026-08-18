@@ -1,9 +1,9 @@
-import type { SmartDiff } from '@devdigest/shared';
+import type { Severity, SmartDiff } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
 import { NotFoundError } from '../../platform/errors.js';
 import type { ReviewRepository } from '../reviews/repository.js';
 import { latestPerAgent } from '../pulls/status.js';
-import { assembleSmartDiff } from './assemble.js';
+import { assembleSmartDiff, type SmartDiffFindingInput } from './assemble.js';
 
 /**
  * Smart Diff — application service (`service.ts`, T4). Mirrors
@@ -35,17 +35,22 @@ export class SmartDiffService {
     // can't disagree with what the PR list shows.
     const latestIds = latestPerAgent(reviewsOnly.map(({ review }) => review));
 
-    const findingLinesByPath = new Map<string, number[]>();
+    const findingsByPath = new Map<string, SmartDiffFindingInput[]>();
     for (const { review, findings } of reviewsOnly) {
       if (!latestIds.has(review.id)) continue;
       for (const finding of findings) {
         if (finding.dismissedAt != null) continue;
-        const lines = findingLinesByPath.get(finding.file);
-        if (lines) lines.push(finding.startLine);
-        else findingLinesByPath.set(finding.file, [finding.startLine]);
+        const entry: SmartDiffFindingInput = {
+          id: finding.id,
+          line: finding.startLine,
+          severity: finding.severity as Severity,
+        };
+        const list = findingsByPath.get(finding.file);
+        if (list) list.push(entry);
+        else findingsByPath.set(finding.file, [entry]);
       }
     }
 
-    return assembleSmartDiff(files, findingLinesByPath);
+    return assembleSmartDiff(files, findingsByPath);
   }
 }

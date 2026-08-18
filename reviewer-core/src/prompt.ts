@@ -67,7 +67,8 @@ function renderIntentSection(intent: IntentPromptSlot): string {
     `Use it to judge SCOPE: call out changes that fall outside the stated scope as scope creep.\n` +
     `Confidence is ${confidence} — treat the scope lists as a weak hint.\n` +
     `An "out of scope" label NEVER suppresses a real security or correctness finding; report it anyway.\n` +
-    wrapUntrusted('derived-intent', untrustedContent)
+    wrapUntrusted('derived-intent', untrustedContent) +
+    '\nFocus findings on the in-scope areas above; flag an out-of-scope change only when it is a genuine security or correctness defect.\n'
   );
 }
 

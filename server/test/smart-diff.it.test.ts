@@ -71,7 +71,7 @@ d('smart-diff module (Testcontainers pg)', () => {
     ]);
 
     // A single `kind: 'review'` row with two findings: one kept (visible in
-    // `finding_lines`), one dismissed (must be excluded per REQ-5/service.ts).
+    // `line_findings`), one dismissed (must be excluded per REQ-5/service.ts).
     const [review] = await pg.handle.db
       .insert(t.reviews)
       .values({
@@ -148,15 +148,18 @@ d('smart-diff module (Testcontainers pg)', () => {
     const lockfile = boilerplateGroup!.files.find((f) => f.path === 'pnpm-lock.yaml');
     expect(lockfile).toBeDefined();
 
-    // (c) the kept finding's start_line (10) appears in that file's finding_lines.
+    // (c) the kept finding's start_line (10) appears in that file's line_findings,
+    // carrying its id and severity along.
     const coreGroup = smartDiff.groups.find((g) => g.role === 'core');
     expect(coreGroup).toBeDefined();
     const serviceFile = coreGroup!.files.find((f) => f.path === 'src/service.ts');
     expect(serviceFile).toBeDefined();
-    expect(serviceFile!.finding_lines).toContain(10);
+    const keptLines = serviceFile!.line_findings.map((lf) => lf.line);
+    expect(keptLines).toContain(10);
+    expect(serviceFile!.line_findings.find((lf) => lf.line === 10)?.severity).toBe('WARNING');
 
     // (d) the dismissed finding's start_line (20) does NOT appear.
-    expect(serviceFile!.finding_lines).not.toContain(20);
+    expect(keptLines).not.toContain(20);
 
     // (e) no LLM call was made for this route (REQ-6 — no-LLM-call guarantee).
     expect(llm.calls).toHaveLength(0);
@@ -384,7 +387,7 @@ d('smart-diff module (Testcontainers pg)', () => {
           severity: 'SUGGESTION',
           category: 'style',
           title: 'A finding attached to a summary-kind row',
-          rationale: 'Must not leak into finding_lines — only kind === review rows count.',
+          rationale: 'Must not leak into line_findings — only kind === review rows count.',
           confidence: 0.5,
           kind: 'finding',
         },
@@ -414,8 +417,9 @@ d('smart-diff module (Testcontainers pg)', () => {
       const coreGroup = smartDiff.groups.find((g) => g.role === 'core');
       const file = coreGroup?.files.find((f) => f.path === 'src/agent-a.ts');
       expect(file).toBeDefined();
-      expect(file!.finding_lines).toContain(6);
-      expect(file!.finding_lines).not.toContain(5);
+      const lines = file!.line_findings.map((lf) => lf.line);
+      expect(lines).toContain(6);
+      expect(lines).not.toContain(5);
 
       await app.close();
     });
@@ -431,8 +435,9 @@ d('smart-diff module (Testcontainers pg)', () => {
       const coreGroup = smartDiff.groups.find((g) => g.role === 'core');
       const file = coreGroup?.files.find((f) => f.path === 'src/agent-union.ts');
       expect(file).toBeDefined();
-      expect(file!.finding_lines).toContain(40);
-      expect(file!.finding_lines).toContain(41);
+      const lines = file!.line_findings.map((lf) => lf.line);
+      expect(lines).toContain(40);
+      expect(lines).toContain(41);
 
       await app.close();
     });
@@ -448,8 +453,9 @@ d('smart-diff module (Testcontainers pg)', () => {
       const coreGroup = smartDiff.groups.find((g) => g.role === 'core');
       const file = coreGroup?.files.find((f) => f.path === 'src/agent-summary.ts');
       expect(file).toBeDefined();
-      expect(file!.finding_lines).toContain(71);
-      expect(file!.finding_lines).not.toContain(70);
+      const lines = file!.line_findings.map((lf) => lf.line);
+      expect(lines).toContain(71);
+      expect(lines).not.toContain(70);
 
       await app.close();
     });

@@ -1,11 +1,19 @@
-import type { ProposedSplit, SmartDiff, SmartDiffFile, SmartDiffGroup, SmartDiffRole } from '@devdigest/shared';
+import type {
+  ProposedSplit,
+  Severity,
+  SmartDiff,
+  SmartDiffFile,
+  SmartDiffFinding,
+  SmartDiffGroup,
+  SmartDiffRole,
+} from '@devdigest/shared';
 import { classifyPath } from './classify.js';
 import { MAX_PROPOSED_SPLITS, ROLE_ORDER, SPLIT_MIN_FILES_PER_GROUP, SPLIT_TOO_BIG_LINES } from './constants.js';
 
 /**
  * Smart Diff — pure assembler (`assemble.ts`, T3).
  *
- * Turns persisted `pr_files` rows + a per-path finding-line map into the
+ * Turns persisted `pr_files` rows + a per-path finding map into the
  * `SmartDiff` contract shape. No I/O, no `this`, no LLM — `pseudocode_summary`
  * is always `null` (REQ-6). Roles come from `classifyPath` (T2); grouping
  * order, `too_big`, and `proposed_splits` thresholds all come from
@@ -19,6 +27,13 @@ export interface SmartDiffInputFile {
   deletions: number;
 }
 
+/** Minimal shape `assembleSmartDiff` needs from one non-dismissed finding. */
+export interface SmartDiffFindingInput {
+  id: string;
+  line: number;
+  severity: Severity;
+}
+
 interface ClassifiedFile {
   file: SmartDiffInputFile;
   role: SmartDiffRole;
@@ -28,10 +43,14 @@ function lineCount(file: SmartDiffInputFile): number {
   return file.additions + file.deletions;
 }
 
-/** Sorted-ascending, de-duplicated finding lines for one file. */
-function sortedUniqueLines(lines: readonly number[] | undefined): number[] {
-  if (!lines || lines.length === 0) return [];
-  return [...new Set(lines)].sort((a, b) => a - b);
+/** Sorted-ascending, de-duplicated (by id) findings for one file. */
+function sortedFindings(findings: readonly SmartDiffFindingInput[] | undefined): SmartDiffFinding[] {
+  if (!findings || findings.length === 0) return [];
+  const byId = new Map<string, SmartDiffFindingInput>();
+  for (const finding of findings) byId.set(finding.id, finding);
+  return [...byId.values()]
+    .sort((a, b) => a.line - b.line || a.id.localeCompare(b.id))
+    .map(({ id, line, severity }) => ({ id, line, severity }));
 }
 
 /** First path segment for `proposed_splits` grouping; `(root)` for top-level files. */
@@ -40,20 +59,20 @@ function firstPathSegment(path: string): string {
   return segments.length > 1 ? segments[0]! : '(root)';
 }
 
-function toSmartDiffFile(file: SmartDiffInputFile, findingLinesByPath: Map<string, number[]>): SmartDiffFile {
+function toSmartDiffFile(file: SmartDiffInputFile, findingsByPath: Map<string, SmartDiffFindingInput[]>): SmartDiffFile {
   return {
     path: file.path,
     pseudocode_summary: null,
     additions: file.additions,
     deletions: file.deletions,
-    finding_lines: sortedUniqueLines(findingLinesByPath.get(file.path)),
+    line_findings: sortedFindings(findingsByPath.get(file.path)),
   };
 }
 
 /** Finding count desc -> (additions + deletions) desc -> path asc — fully deterministic. */
 function compareFiles(a: SmartDiffFile, b: SmartDiffFile): number {
-  if (b.finding_lines.length !== a.finding_lines.length) {
-    return b.finding_lines.length - a.finding_lines.length;
+  if (b.line_findings.length !== a.line_findings.length) {
+    return b.line_findings.length - a.line_findings.length;
   }
   const aLines = a.additions + a.deletions;
   const bLines = b.additions + b.deletions;
@@ -61,10 +80,10 @@ function compareFiles(a: SmartDiffFile, b: SmartDiffFile): number {
   return a.path.localeCompare(b.path);
 }
 
-function buildGroups(classified: ClassifiedFile[], findingLinesByPath: Map<string, number[]>): SmartDiffGroup[] {
+function buildGroups(classified: ClassifiedFile[], findingsByPath: Map<string, SmartDiffFindingInput[]>): SmartDiffGroup[] {
   const byRole = new Map<SmartDiffRole, SmartDiffFile[]>();
   for (const { file, role } of classified) {
-    const smartDiffFile = toSmartDiffFile(file, findingLinesByPath);
+    const smartDiffFile = toSmartDiffFile(file, findingsByPath);
     const bucket = byRole.get(role);
     if (bucket) bucket.push(smartDiffFile);
     else byRole.set(role, [smartDiffFile]);
@@ -101,11 +120,11 @@ function buildProposedSplits(coreAndWiring: SmartDiffInputFile[]): ProposedSplit
 
 export function assembleSmartDiff(
   files: SmartDiffInputFile[],
-  findingLinesByPath: Map<string, number[]>,
+  findingsByPath: Map<string, SmartDiffFindingInput[]>,
 ): SmartDiff {
   const classified: ClassifiedFile[] = files.map((file) => ({ file, role: classifyPath(file.path) }));
 
-  const groups = buildGroups(classified, findingLinesByPath);
+  const groups = buildGroups(classified, findingsByPath);
 
   const totalLines = files.reduce((sum, file) => sum + lineCount(file), 0);
 

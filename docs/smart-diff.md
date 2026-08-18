@@ -63,7 +63,7 @@ response are de-duplicated and sorted ascending.
 Smart Diff displays findings from each agent's latest `kind: "review"` record.
 Rows without an agent ID remain independent. Summary reviews, dismissed
 findings, and findings absent from the endpoint's authoritative
-`finding_lines` are excluded. (`server/src/modules/smart-diff/service.ts:31-47`,
+`line_findings` ids are excluded. (`server/src/modules/smart-diff/service.ts:31-47`,
 `server/src/modules/pulls/status.ts:33-50`,
 `client/src/app/repos/[repoId]/pulls/[number]/_components/SmartDiffViewer/helpers.ts:32-87`)
 
@@ -141,7 +141,8 @@ the other server modules. (`server/src/modules/smart-diff/routes.ts:19-30`,
 The response contains:
 
 - `groups[]` with `role` and ordered `files[]`;
-- each file's `path`, additions, deletions, and `finding_lines`;
+- each file's `path`, additions, deletions, and `line_findings` (each entry:
+  `id`, `line`, `severity`);
 - `split_suggestion` with `too_big`, `total_lines`, and proposed directory
   splits;
 - `pseudocode_summary: null` for every file in the current deterministic

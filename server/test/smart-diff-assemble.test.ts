@@ -6,7 +6,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import { SmartDiff } from '@devdigest/shared';
-import { assembleSmartDiff, type SmartDiffInputFile } from '../src/modules/smart-diff/assemble.js';
+import {
+  assembleSmartDiff,
+  type SmartDiffFindingInput,
+  type SmartDiffInputFile,
+} from '../src/modules/smart-diff/assemble.js';
 import { SPLIT_TOO_BIG_LINES } from '../src/modules/smart-diff/constants.js';
 
 describe('assembleSmartDiff', () => {
@@ -49,7 +53,7 @@ describe('assembleSmartDiff', () => {
     for (const group of parsed.groups) {
       for (const file of group.files) {
         expect(file.pseudocode_summary).toBeNull();
-        expect(file.finding_lines).toEqual([]);
+        expect(file.line_findings).toEqual([]);
       }
     }
 
@@ -59,7 +63,7 @@ describe('assembleSmartDiff', () => {
     expect(parsed.split_suggestion.total_lines).toBe(10 + 2 + 5 + 1 + 500 + 500);
   });
 
-  it('sorts files by finding count desc, then lines desc, then path asc, with de-duplicated ascending finding_lines', () => {
+  it('sorts files by finding count desc, then lines desc, then path asc, with de-duplicated (by id) ascending line_findings', () => {
     const files: SmartDiffInputFile[] = [
       { path: 'src/z.ts', additions: 5, deletions: 5 },
       { path: 'src/a.ts', additions: 1, deletions: 1 },
@@ -68,20 +72,34 @@ describe('assembleSmartDiff', () => {
       { path: 'index.ts', additions: 3, deletions: 0 },
       { path: 'yarn.lock', additions: 200, deletions: 0 },
     ];
-    const findingLinesByPath = new Map<string, number[]>([
-      ['src/a.ts', [30, 10, 10, 20]],
-      ['src/m.ts', [5]],
+    const findingsByPath = new Map<string, SmartDiffFindingInput[]>([
+      [
+        'src/a.ts',
+        [
+          { id: 'f-30', line: 30, severity: 'WARNING' },
+          { id: 'f-10', line: 10, severity: 'WARNING' },
+          { id: 'f-10', line: 10, severity: 'WARNING' }, // duplicate id — must collapse to one
+          { id: 'f-20', line: 20, severity: 'CRITICAL' },
+        ],
+      ],
+      ['src/m.ts', [{ id: 'f-5', line: 5, severity: 'SUGGESTION' }]],
     ]);
 
-    const result = assembleSmartDiff(files, findingLinesByPath);
+    const result = assembleSmartDiff(files, findingsByPath);
     const parsed = SmartDiff.parse(result);
 
     expect(parsed.groups.map((g) => g.role)).toEqual(['core', 'wiring', 'boilerplate']);
 
     const coreGroup = parsed.groups.find((g) => g.role === 'core')!;
     expect(coreGroup.files.map((f) => f.path)).toEqual(['src/a.ts', 'src/m.ts', 'src/b.ts', 'src/z.ts']);
-    expect(coreGroup.files.find((f) => f.path === 'src/a.ts')!.finding_lines).toEqual([10, 20, 30]);
-    expect(coreGroup.files.find((f) => f.path === 'src/m.ts')!.finding_lines).toEqual([5]);
+    expect(coreGroup.files.find((f) => f.path === 'src/a.ts')!.line_findings).toEqual([
+      { id: 'f-10', line: 10, severity: 'WARNING' },
+      { id: 'f-20', line: 20, severity: 'CRITICAL' },
+      { id: 'f-30', line: 30, severity: 'WARNING' },
+    ]);
+    expect(coreGroup.files.find((f) => f.path === 'src/m.ts')!.line_findings).toEqual([
+      { id: 'f-5', line: 5, severity: 'SUGGESTION' },
+    ]);
 
     const wiringGroup = parsed.groups.find((g) => g.role === 'wiring')!;
     expect(wiringGroup.files.map((f) => f.path)).toEqual(['index.ts']);
