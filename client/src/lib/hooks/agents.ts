@@ -1,7 +1,7 @@
 /* hooks/agents.ts — React Query hooks for the A2 Agents tab + Agent Editor. */
 "use client";
 
-import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import type { Agent, AgentSkillLink, ModelInfo, Provider, ReviewStrategy } from "@devdigest/shared";
 
@@ -97,22 +97,6 @@ export function useAgentSkills(agentId: string | null | undefined) {
     queryFn: () => api.get<AgentSkillLink[]>(`/agents/${agentId}/skills`),
     enabled: !!agentId,
   });
-}
-
-/** Linked-skill counts for a list of agent cards. Reuses the same per-agent
-    query keys as the Skills editor, so attaching or detaching a skill updates
-    the badge without a separate cache or endpoint. */
-export function useAgentSkillCounts(agentIds: string[]) {
-  const queries = useQueries({
-    queries: agentIds.map((agentId) => ({
-      queryKey: ["agent-skills", agentId],
-      queryFn: () => api.get<AgentSkillLink[]>(`/agents/${agentId}/skills`),
-    })),
-  });
-
-  return Object.fromEntries(
-    agentIds.map((agentId, index) => [agentId, queries[index]?.data?.length]),
-  ) as Record<string, number | undefined>;
 }
 
 /** Replace an agent's whole ordered skill set in one call
