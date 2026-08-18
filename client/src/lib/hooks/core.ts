@@ -98,6 +98,28 @@ export function useDeleteRepo() {
   });
 }
 
+/** POST /repos/:id/poll response — syncs PR title/body/commits/files from
+ *  GitHub into DevDigest's Postgres copy. Manual refresh only; never triggers
+ *  a review (see server/src/modules/polling/routes.ts). */
+interface PollResult {
+  synced: number;
+  reviewTriggered: false;
+}
+
+export function useSyncRepo(repoId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<PollResult>(`/repos/${repoId}/poll`),
+    onSuccess: () => {
+      // Sync can update any PR in the repo (title/body/commits/files) — drop
+      // the list cache and every cached PR detail so the UI reflects fresh
+      // data without a manual reload.
+      qc.invalidateQueries({ queryKey: ["pulls", repoId] });
+      qc.invalidateQueries({ queryKey: ["pull"] });
+    },
+  });
+}
+
 // ---- Pull requests (F1: GET /repos/:id/pulls, GET /pulls/:id) ----
 export function usePulls(repoId: string | null | undefined) {
   return useQuery({

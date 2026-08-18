@@ -1,0 +1,38 @@
+{
+  "title": "INTENT",
+  "inScope": "In scope",
+  "outOfScope": "Out of scope",
+  "confidence": {
+    "high": "HIGH",
+    "medium": "MEDIUM",
+    "low": "LOW",
+    "aria": "Confidence: {tier}"
+  },
+  "sources": {
+    "label": "Derived from",
+    "notFetched": "not fetched",
+    "signal": {
+      "linked_plan_file": "linked plan file",
+      "linked_issue": "linked issue",
+      "external_doc_url": "external link",
+      "pr_description": "PR description",
+      "pr_title": "PR title",
+      "commit_messages": "commit messages",
+      "changed_paths": "changed paths",
+      "diff": "diff"
+    }
+  },
+  "empty": {
+    "title": "No intent derived yet",
+    "body": "Derive this PR's intent and scope from its title, description, commits, and diff.",
+    "cta": "Derive intent",
+    "deriveFailed": "Couldn't derive this PR's intent. Try again."
+  },
+  "recompute": {
+    "cta": "Recompute",
+    "ariaLabel": "Recompute this PR's intent"
+  },
+  "error": {
+    "body": "Couldn't load this PR's intent."
+  }
+}

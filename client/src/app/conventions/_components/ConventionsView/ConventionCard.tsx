@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Button, SelectInput, TextInput } from "@devdigest/ui";
+import { Button, SelectInput, Textarea } from "@devdigest/ui";
 import type {
   ConventionCandidate,
   ConventionCategory,
@@ -105,7 +105,7 @@ export function ConventionCard({
                   }))}
                   mono={false}
                 />
-                <TextInput value={rule} onChange={setRule} />
+                <Textarea value={rule} onChange={setRule} rows={3} />
               </div>
               <div style={s.editActions}>
                 <Button kind="ghost" size="sm" onClick={cancelEdit}>
@@ -125,7 +125,21 @@ export function ConventionCard({
           ) : (
             <>
               <div style={s.category}>{t(`categories.${candidate.category}`)}</div>
-              <div style={s.rule}>{candidate.rule}</div>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={beginEdit}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    beginEdit();
+                  }
+                }}
+                title={t("card.edit")}
+                style={{ ...s.rule, cursor: "pointer" }}
+              >
+                {candidate.rule}
+              </div>
             </>
           )}
         </div>

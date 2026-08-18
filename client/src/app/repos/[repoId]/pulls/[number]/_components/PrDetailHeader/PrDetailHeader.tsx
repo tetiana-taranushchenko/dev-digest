@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, Button, Tabs } from "@devdigest/ui";
+import { useSyncRepo } from "@/lib/hooks";
+import { ApiError } from "@/lib/api";
+import { useToast } from "@/lib/toast";
 import { RunReviewDropdown } from "../RunReviewDropdown";
 import { s } from "./styles";
 import type { PrDetail } from "@/lib/types";
@@ -9,6 +13,8 @@ import type { PrDetail } from "@/lib/types";
 interface PrDetailHeaderProps {
   pr: PrDetail;
   prId: string | null;
+  /** repo the PR belongs to — needed to sync from GitHub. */
+  repoId: string;
   tab: string;
   findingsCount: number;
   /** github.com PR URL; null when the repo's full_name isn't known yet. */
@@ -21,6 +27,7 @@ interface PrDetailHeaderProps {
 export function PrDetailHeader({
   pr,
   prId,
+  repoId,
   tab,
   findingsCount,
   githubUrl,
@@ -28,6 +35,10 @@ export function PrDetailHeader({
   onRunStart,
   onRunsStarted,
 }: PrDetailHeaderProps) {
+  const t = useTranslations("prReview");
+  const toast = useToast();
+  const sync = useSyncRepo(repoId);
+
   const handleRunStart = useCallback(() => {
     onRunStart();
   }, [onRunStart]);
@@ -35,6 +46,14 @@ export function PrDetailHeader({
   const handleRunsStarted = useCallback(() => {
     onRunsStarted();
   }, [onRunsStarted]);
+
+  const handleSync = useCallback(() => {
+    sync.mutate(undefined, {
+      onSuccess: (data) => toast.success(t("syncFromGithub.success", { count: data.synced })),
+      onError: (err) =>
+        toast.error(err instanceof ApiError ? err.message : t("syncFromGithub.failed")),
+    });
+  }, [sync, toast, t]);
 
   const statusColor =
     pr.status === "merged"
@@ -88,6 +107,15 @@ export function PrDetailHeader({
             }
           >
             View on GitHub
+          </Button>
+          <Button
+            kind="ghost"
+            size="sm"
+            icon="RefreshCw"
+            loading={sync.isPending}
+            onClick={handleSync}
+          >
+            {sync.isPending ? t("syncFromGithub.syncing") : t("syncFromGithub.button")}
           </Button>
           {prId && (
             <RunReviewDropdown

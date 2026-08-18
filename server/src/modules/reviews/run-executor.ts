@@ -1,12 +1,38 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers, wrapUntrusted } from '@devdigest/reviewer-core';
+import type { PrIntentRecord, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import {
+  reviewPullRequest,
+  countBlockers,
+  wrapUntrusted,
+  type IntentPromptSlot,
+} from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow, RepoRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { IntentService } from '../intent/service.js';
+import { logPromptAssembly } from './prompt-logging.js';
+
+/**
+ * Map the persisted `PrIntentRecord` (server-side, includes provider/model/
+ * pr_id/etc.) down to `IntentPromptSlot` — exactly what `assemblePrompt`
+ * (reviewer-core/src/prompt.ts) renders. `signals` is the list of fetched
+ * source names for the "derived by a separate classifier from: …" line;
+ * mirrors the precedent in `modules/intent/service.ts`'s own pino log line
+ * (`persistedSources.filter((s) => s.fetched).map((s) => s.signal)`) rather
+ * than inventing a second naming scheme.
+ */
+function toIntentPromptSlot(assessment: PrIntentRecord): IntentPromptSlot {
+  return {
+    intent: assessment.intent,
+    in_scope: assessment.in_scope,
+    out_of_scope: assessment.out_of_scope,
+    confidence: assessment.confidence,
+    signals: assessment.sources.filter((s) => s.fetched).map((s) => s.signal),
+  };
+}
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -74,6 +100,9 @@ export class ReviewRunExecutor {
     const failAll = async (msg: string) => {
       for (const { runId, agent } of jobs) {
         await this.repo
+          .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed'))
+          .catch(() => undefined);
+        await this.repo
           .completeAgentRun(runId, {
             status: 'failed',
             durationMs: 0,
@@ -84,9 +113,6 @@ export class ReviewRunExecutor {
             grounding: '0/0 passed',
             error: msg,
           })
-          .catch(() => undefined);
-        await this.repo
-          .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed'))
           .catch(() => undefined);
         this.container.runBus.complete(runId);
       }
@@ -104,6 +130,38 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Shared pre-work, ONCE per batch (§2 "Key properties" #1/#2): derive PR
+    // intent after the diff (one of its signals) and before the per-agent
+    // loop — N agents on one PR = 1 cheap classifier call, not N.
+    // Non-fatal by design (REQ-6/REQ-7, "Key properties" #4): unlike
+    // `loadDiff` above (which calls `failAll` on error), a failure here is
+    // caught, logged via `runLog.info`, and every queued run still proceeds
+    // with `intent` left `undefined` — `reviewPullRequest` then omits the
+    // `intent` field entirely, so `assemblePrompt` renders a prompt
+    // byte-identical to the pre-Intent baseline.
+    let intent: IntentPromptSlot | undefined;
+    try {
+      const assessment = await runLog.step(
+        'Deriving PR intent',
+        () => new IntentService(this.container).ensureForPull(workspaceId, pull.id, { diff, logger }),
+        { kind: 'tool' },
+      );
+      intent = toIntentPromptSlot(assessment);
+      // Plan §7 result line: mirrors the format of the sibling pre-work
+      // steps' success lines above (e.g. "Diff ready — …", "repo map: …
+      // attached") — one line naming what was derived and from which
+      // signals, on top of the generic step() "done (Nms)" line already
+      // emitted by runLog.step above. tokens/cost are intentionally omitted
+      // here: they're on the persisted `pr_intent` row (`IntentRow`), not on
+      // `PrIntentRecord` (the shape `assessment` is), and widening that
+      // shape is out of scope for this observability-only fix.
+      runLog.info(
+        `Intent: confidence=${assessment.confidence.toUpperCase()} · model=${assessment.model} · sources=${intent.signals.join(',')}`,
+      );
+    } catch (err) {
+      runLog.info(`Intent derivation skipped: ${(err as Error).message}`);
+    }
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -111,7 +169,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog, intent, logger);
         logger?.info(
           {
             runId,
@@ -143,6 +201,8 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    intent: IntentPromptSlot | undefined,
+    logger?: Logger,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -224,9 +284,23 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Derived PR intent (shared pre-work above) — only when derivation
+        // succeeded; assemblePrompt omits the `## Derived PR intent` section
+        // (and records `prompt_assembly.intent = null`) when absent.
+        ...(intent ? { intent } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
+        // Emitted for EVERY actual LLM prompt (one in single-pass, one per file
+        // in map-reduce) immediately after assembly and BEFORE the request. A
+        // provider failure therefore cannot erase the prompt-assembly record.
+        onPromptAssembled: (event) =>
+          logPromptAssembly(logger, {
+            runId,
+            model: agent.model,
+            verbose: this.container.config.promptLogVerbose,
+            event,
+          }),
         checkCancelled: () => {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
@@ -265,19 +339,6 @@ export class ReviewRunExecutor {
       const blockers = countBlockers(keptFindings, agent.ciFailOn);
 
       // ---- Observability: agent_runs + ONE run_traces document --------------
-      await this.repo.completeAgentRun(runId, {
-        status: 'done',
-        durationMs,
-        tokensIn,
-        tokensOut,
-        costUsd,
-        findingsCount: findingRows.length,
-        grounding,
-        score: outcome.review.score,
-        blockers,
-        error: null,
-      });
-
       const trace: RunTrace = {
         config: {
           agent: agent.name,
@@ -311,6 +372,21 @@ export class ReviewRunExecutor {
       };
       runLog.info('Run complete; trace persisted');
       await this.repo.saveRunTrace(runId, trace);
+      // A terminal status is the public readiness signal used by polling
+      // clients and tests. Publish it only after the corresponding trace is
+      // readable, otherwise a fast poll can observe `done` and still get 404.
+      await this.repo.completeAgentRun(runId, {
+        status: 'done',
+        durationMs,
+        tokensIn,
+        tokensOut,
+        costUsd,
+        findingsCount: findingRows.length,
+        grounding,
+        score: outcome.review.score,
+        blockers,
+        error: null,
+      });
       this.container.runBus.complete(runId);
 
       return { review, findings: findingRows, grounding, raw: outcome.review };
@@ -322,6 +398,9 @@ export class ReviewRunExecutor {
       const msg = cancelled ? 'Cancelled by user' : (err as Error).message;
       runLog.error(cancelled ? 'Run cancelled by user' : `Run failed: ${msg}`);
       await this.repo
+        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .catch(() => undefined);
+      await this.repo
         .completeAgentRun(runId, {
           status,
           durationMs: Date.now() - start,
@@ -332,9 +411,6 @@ export class ReviewRunExecutor {
           grounding: '0/0 passed',
           error: msg,
         })
-        .catch(() => undefined);
-      await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;

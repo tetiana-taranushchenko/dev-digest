@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
@@ -202,6 +202,22 @@ export class AgentsRepository {
   async skillIdsForAgent(agentId: string): Promise<string[]> {
     const links = await this.linkedSkills(agentId);
     return links.map((l) => l.skill.id);
+  }
+
+  /**
+   * Linked-skill counts for a set of agents, in ONE grouped query — avoids the
+   * N+1 pattern of fetching `linkedSkills` per agent just to read `.length`.
+   * An agent id with zero links has no row in `agent_skills` and so is simply
+   * absent from the result map; callers default missing entries to 0.
+   */
+  async countSkillsByAgent(agentIds: string[]): Promise<Map<string, number>> {
+    if (agentIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({ agentId: t.agentSkills.agentId, count: count() })
+      .from(t.agentSkills)
+      .where(inArray(t.agentSkills.agentId, agentIds))
+      .groupBy(t.agentSkills.agentId);
+    return new Map(rows.map((r) => [r.agentId, Number(r.count)]));
   }
 
   /** Link a skill to an agent at a given order (idempotent: upserts order). */

@@ -7,7 +7,11 @@ import type {
   UnifiedDiff,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
-import { assemblePrompt } from '../prompt.js';
+import {
+  assemblePrompt,
+  type IntentPromptSlot,
+  type PromptAssemblySummary,
+} from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
@@ -41,6 +45,17 @@ export interface ReviewEvent {
   data?: unknown;
 }
 
+/** Content-free metadata for one prompt that is about to be sent to the LLM. */
+export interface PromptAssemblyEvent {
+  /** One-based position of this LLM call within the review. */
+  callIndex: number;
+  callCount: number;
+  mode: ReviewMode;
+  /** Never contains a file path; map-reduce chunks are identified only as `file`. */
+  scope: 'whole_diff' | 'file';
+  summary: PromptAssemblySummary;
+}
+
 export interface ReviewInput {
   /** Agent system prompt (trusted). */
   systemPrompt: string;
@@ -71,6 +86,12 @@ export interface ReviewInput {
   /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
       the prompt). Empty/undefined → section omitted. */
   prDescription?: string;
+  /**
+   * Derived PR intent (intent layer — classifier is a follow-up task, not yet
+   * implemented). Untrusted; rendered after the PR description section.
+   * Empty/undefined → section omitted (no behavior change).
+   */
+  intent?: IntentPromptSlot;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -84,6 +105,8 @@ export interface ReviewInput {
   sessionId?: string;
   /** Progress sink. */
   onEvent?: (e: ReviewEvent) => void;
+  /** Called after assembling each actual prompt and before its LLM request. */
+  onPromptAssembled?: (event: PromptAssemblyEvent) => void;
   /**
    * Cancellation checkpoint, called before each (expensive) chunk LLM call.
    * Supply a function that THROWS to abort mid-run (the caller owns the error
@@ -135,6 +158,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     callers: input.callers,
     repoMap: input.repoMap,
     prDescription: input.prDescription,
+    intent: input.intent,
     task: input.task,
   };
 
@@ -159,7 +183,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   let costUsd: number | null = 0;
   const raws: string[] = [];
 
-  for (const chunk of chunks) {
+  for (const [chunkIndex, chunk] of chunks.entries()) {
     // Cancellation checkpoint — stop before the next (expensive) LLM call.
     input.checkCancelled?.();
     // 'map:' prefix only for the map-reduce path (one call per file). In
@@ -171,6 +195,13 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     );
     const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
     if (mode === 'single-pass') assembly = a.assembly;
+    input.onPromptAssembled?.({
+      callIndex: chunkIndex + 1,
+      callCount: chunks.length,
+      mode,
+      scope: mode === 'map-reduce' ? 'file' : 'whole_diff',
+      summary: a.summary,
+    });
     const res = await input.llm.completeStructured<Review>({
       model: input.model,
       schema: ReviewSchema,

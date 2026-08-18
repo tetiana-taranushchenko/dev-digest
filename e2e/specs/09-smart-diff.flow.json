@@ -1,0 +1,24 @@
+{
+  "name": "Smart Diff switches from original order and groups files",
+  "description": "From seeded PR #482, verify Original order is the default and switching to Smart order renders the instructor-aligned groups. Does NOT cover clicking an inline finding marker to navigate to the Agent runs tab — that step fails only in CI (works locally in every manual/automated check); see e2e/INSIGHTS.md before re-adding it. Read-only seeded data; no review/model call and no AI locator.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR row is visible" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the seeded PR" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Files changed"], "label": "open Files changed" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "diff tab is active" },
+    {
+      "cmd": ["eval", "(() => Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Original order')?.getAttribute('aria-pressed'))()"],
+      "label": "Original order is selected by default",
+      "assert": { "stdoutIncludes": "true" }
+    },
+    { "cmd": ["wait", "--text", "src/config.ts"], "label": "original file list is visible" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Smart order"], "label": "activate Smart order" },
+    { "cmd": ["wait", "--text", "Core logic"], "label": "Core logic group renders" },
+    { "cmd": ["wait", "--text", "The substance of the change — review closely"], "label": "instructor group description renders" },
+    { "cmd": ["network", "requests", "--clear"], "label": "clear prior navigation requests" }
+  ]
+}

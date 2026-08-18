@@ -18,7 +18,7 @@
  */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readdirSync, readFileSync, mkdirSync } from "node:fs";
+import { readdirSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
@@ -81,9 +81,17 @@ async function runFlow(file: string, flow: Flow): Promise<FlowResult> {
       const msg = (e as Error).message.split("\n")[0];
       steps.push({ label, ok: false, detail: msg });
       console.log(`   ✗ ${label} — ${msg}`);
-      // Best-effort failure screenshot for the artifact upload.
+      // Best-effort failure diagnostics for the artifact upload: screenshot,
+      // browser console (JS errors invisible from the CLI's own exit code),
+      // and in-flight network requests.
       mkdirSync(RESULTS_DIR, { recursive: true });
       await ab(["screenshot", join(RESULTS_DIR, `${id}-fail.png`)]).catch(() => {});
+      await ab(["console"])
+        .then((out) => writeFileSync(join(RESULTS_DIR, `${id}-console.log`), out))
+        .catch(() => {});
+      await ab(["network", "requests"])
+        .then((out) => writeFileSync(join(RESULTS_DIR, `${id}-network.log`), out))
+        .catch(() => {});
       break;
     }
   }

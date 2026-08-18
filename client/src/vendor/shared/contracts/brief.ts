@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Severity } from './findings.js';
 
 /**
  * PR Brief building blocks: Intent, Blast radius, Risks, PR History,
@@ -12,6 +13,49 @@ export const Intent = z.object({
   out_of_scope: z.array(z.string()),
 });
 export type Intent = z.infer<typeof Intent>;
+
+/**
+ * Discrete, code-derived confidence tier for a derived Intent. Never
+ * self-reported by the model (REQ-4) — computed deterministically in
+ * `reviewer-core/src/intent/confidence.ts` from which signals were available.
+ */
+export const IntentConfidence = z.enum(['high', 'medium', 'low']);
+export type IntentConfidence = z.infer<typeof IntentConfidence>;
+
+/** The signal kinds the intent classifier can draw on, in priority order. */
+export const IntentSignal = z.enum([
+  'linked_plan_file',
+  'linked_issue',
+  'external_doc_url',
+  'pr_description',
+  'pr_title',
+  'commit_messages',
+  'changed_paths',
+  'diff',
+]);
+export type IntentSignal = z.infer<typeof IntentSignal>;
+
+/** One signal's availability/fetch outcome, recorded per intent derivation. */
+export const IntentSource = z.object({
+  signal: IntentSignal,
+  fetched: z.boolean(),
+  /** Path/URL/identifier the signal was read from, when applicable. */
+  ref: z.string().nullish(),
+  /** Reason the signal could not be fetched (e.g. `external_url_fetch_not_supported`). */
+  error: z.string().nullish(),
+});
+export type IntentSource = z.infer<typeof IntentSource>;
+
+/** A derived Intent plus the confidence tier, sources, and classifier metadata. */
+export const IntentAssessment = Intent.extend({
+  confidence: IntentConfidence,
+  confidence_reason: z.string(),
+  sources: z.array(IntentSource),
+  provider: z.string(),
+  model: z.string(),
+  generated_at: z.string(),
+});
+export type IntentAssessment = z.infer<typeof IntentAssessment>;
 
 // ---- Blast radius ----
 export const ChangedSymbol = z.object({
@@ -81,12 +125,20 @@ export type PrHistory = z.infer<typeof PrHistory>;
 export const SmartDiffRole = z.enum(['core', 'wiring', 'boilerplate']);
 export type SmartDiffRole = z.infer<typeof SmartDiffRole>;
 
+/** One finding attached to a Smart Diff file, at the exact line it was raised on. */
+export const SmartDiffFinding = z.object({
+  id: z.string(),
+  line: z.number().int(),
+  severity: Severity,
+});
+export type SmartDiffFinding = z.infer<typeof SmartDiffFinding>;
+
 export const SmartDiffFile = z.object({
   path: z.string(),
   pseudocode_summary: z.string().nullish(),
   additions: z.number().int(),
   deletions: z.number().int(),
-  finding_lines: z.array(z.number().int()),
+  line_findings: z.array(SmartDiffFinding),
 });
 export type SmartDiffFile = z.infer<typeof SmartDiffFile>;
 
@@ -109,6 +161,13 @@ export const SmartDiff = z.object({
     total_lines: z.number().int(),
     proposed_splits: z.array(ProposedSplit),
   }),
+  /**
+   * Sum of input+output tokens across each agent's latest review run.
+   * `null` when there are no latest reviews yet, or any of them lacks a
+   * completed run with known token counts (all-or-nothing — never a partial
+   * total presented as authoritative).
+   */
+  review_tokens: z.number().int().nullable(),
 });
 export type SmartDiff = z.infer<typeof SmartDiff>;
 

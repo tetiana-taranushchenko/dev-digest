@@ -1,6 +1,6 @@
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
+import type { Finding, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -21,6 +21,7 @@ export type ReviewRow = typeof t.reviews.$inferSelect;
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
+export type { UpsertIntentInput, IntentRow } from './repository/pull.repo.js';
 
 export class ReviewRepository {
   constructor(private db: Db) {}
@@ -43,6 +44,11 @@ export class ReviewRepository {
 
   getPrFiles(prId: string): Promise<(typeof t.prFiles.$inferSelect)[]> {
     return pullRepo.getPrFiles(this.db, prId);
+  }
+
+  /** Newest `limit` commits for a PR (message + committedAt), newest-first. */
+  getPrCommits(prId: string, limit: number): Promise<{ message: string; committedAt: Date | null }[]> {
+    return pullRepo.getPrCommits(this.db, prId, limit);
   }
 
   // ---- reviews + findings -------------------------------------------------
@@ -133,11 +139,11 @@ export class ReviewRepository {
 
   // ---- intent -------------------------------------------------------------
 
-  upsertIntent(prId: string, intent: Intent): Promise<void> {
-    return pullRepo.upsertIntent(this.db, prId, intent);
+  upsertIntent(prId: string, input: pullRepo.UpsertIntentInput): Promise<void> {
+    return pullRepo.upsertIntent(this.db, prId, input);
   }
 
-  getIntent(prId: string): Promise<Intent | undefined> {
+  getIntent(prId: string): Promise<pullRepo.IntentRow | undefined> {
     return pullRepo.getIntent(this.db, prId);
   }
 

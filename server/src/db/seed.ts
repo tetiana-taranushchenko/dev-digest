@@ -159,7 +159,15 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     await db.insert(t.prFiles).values([
       { prId: pr!.id, path: 'src/middleware/ratelimit.ts', additions: 84, deletions: 0 },
       { prId: pr!.id, path: 'src/api/public/webhooks.ts', additions: 31, deletions: 6 },
-      { prId: pr!.id, path: 'src/config.ts', additions: 4, deletions: 0 },
+      {
+        prId: pr!.id,
+        path: 'src/config.ts',
+        additions: 4,
+        deletions: 0,
+        // The existing seeded finding cites new-side line 12. Keep a real,
+        // non-secret patch so Smart Diff e2e can anchor its inline marker.
+        patch: '@@ -11,1 +11,2 @@\n   redisUrl: process.env.REDIS_URL,\n+  stripeKey: "sk_test_redacted",',
+      },
       { prId: pr!.id, path: 'src/api/users.ts', additions: 7, deletions: 2 },
     ]);
 
@@ -212,6 +220,28 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         confidence: 0.86,
       },
     ]);
+
+    // seeded intent assessment — lets e2e assert the loaded INTENT panel
+    // without triggering a real classifier call (README: "nothing triggers
+    // a model call"); headSha matches pr.headSha so it reads as complete/cached.
+    await db.insert(t.prIntent).values({
+      prId: pr!.id,
+      intent: 'Add token-bucket rate limiting to public API endpoints to block abuse from unauthenticated clients.',
+      inScope: ['Rate-limit middleware for public endpoints', 'Config for limiter thresholds'],
+      outOfScope: ['Authenticated-endpoint limits', 'Distributed/multi-instance rate limiting'],
+      confidence: 'medium',
+      confidenceReason: 'PR description gives a clear, sufficiently detailed statement of intent.',
+      sources: [
+        { signal: 'pr_description', fetched: true },
+        { signal: 'pr_title', fetched: true },
+        { signal: 'commit_messages', fetched: true },
+        { signal: 'changed_paths', fetched: true },
+        { signal: 'diff', fetched: true },
+      ],
+      provider: 'seed',
+      model: 'seed',
+      headSha: pr!.headSha,
+    });
   }
 
   // ---- built-in agents (the three starter presets) ----

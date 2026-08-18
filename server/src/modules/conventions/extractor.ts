@@ -1,12 +1,15 @@
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
 import type { ConventionCategory } from '@devdigest/shared';
 import { wrapUntrusted } from '@devdigest/reviewer-core';
 import type { Container } from '../../platform/container.js';
 import { ValidationError } from '../../platform/errors.js';
 import { resolveFeatureModel } from '../settings/feature-models.js';
+import { isWithin, safeRepoPath } from '../_shared/path-safety.js';
 import { ConventionExtraction } from './contracts.js';
 import type { InsertConvention } from './repository.js';
+
+export { safeRepoPath } from '../_shared/path-safety.js';
 
 const MAX_FILE_CHARS = 12_000;
 const MAX_PROMPT_CHARS = 90_000;
@@ -18,20 +21,6 @@ export interface ConventionSample {
   path: string;
   content: string;
   lines: string[];
-}
-
-function isWithin(root: string, candidate: string): boolean {
-  const rel = relative(root, candidate);
-  return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
-}
-
-/** Normalize an LLM/repo-intel path and reject absolute/traversal variants. */
-export function safeRepoPath(path: string): string | null {
-  const trimmed = path.trim();
-  if (!trimmed || isAbsolute(trimmed) || trimmed.includes('\\')) return null;
-  const segments = trimmed.split('/');
-  if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return null;
-  return segments.join('/');
 }
 
 async function readSample(cloneRoot: string, path: string): Promise<ConventionSample | null> {

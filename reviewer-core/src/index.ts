@@ -15,8 +15,12 @@
 export {
   assemblePrompt,
   wrapUntrusted,
+  INJECTION_GUARD,
   type PromptParts,
   type AssembledPrompt,
+  type IntentPromptSlot,
+  type PromptSectionSummary,
+  type PromptAssemblySummary,
 } from './prompt.js';
 
 // Citation grounding — the mandatory mechanical gate for diff findings.
@@ -42,6 +46,7 @@ export {
   type ReviewInput,
   type ReviewOutcome,
   type ReviewEvent,
+  type PromptAssemblyEvent,
   type ReviewStrategy,
   type ReviewMode,
 } from './review/run.js';
@@ -57,3 +62,21 @@ export {
 // The single OpenAI-compatible structured provider (OpenRouter), shared by the
 // CI runner and the server's openrouter path. Owns session grouping + guards.
 export { OpenRouterProvider, type OpenRouterProviderOptions } from './llm/openrouter.js';
+
+// Intent layer — cheap, separate-model classifier that derives a PR's
+// intent/scope from the strongest available signals, plus the deterministic,
+// code-derived confidence tier (REQ-4). Pure domain logic: no DB, GitHub, or
+// fs access — the caller (server, T7) resolves signal content and the LLM
+// provider before calling in.
+export { IntentClassification } from './intent/schema.js';
+export { assembleIntentPrompt, type IntentSignalInput } from './intent/prompt.js';
+export {
+  classifyIntent,
+  type ClassifyIntentInput,
+  type ClassifyIntentResult,
+} from './intent/classify.js';
+export {
+  deriveConfidence,
+  type ConfidenceSource,
+  type ConfidenceResult,
+} from './intent/confidence.js';

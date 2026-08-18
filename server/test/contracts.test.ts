@@ -109,10 +109,21 @@ describe('AI contracts parse fixtures', () => {
       groups: [
         {
           role: 'core',
-          files: [{ path: 'a.ts', additions: 84, deletions: 0, finding_lines: [28, 52] }],
+          files: [
+            {
+              path: 'a.ts',
+              additions: 84,
+              deletions: 0,
+              line_findings: [
+                { id: 'f-1', line: 28, severity: 'WARNING' },
+                { id: 'f-2', line: 52, severity: 'CRITICAL' },
+              ],
+            },
+          ],
         },
       ],
       split_suggestion: { too_big: false, total_lines: 285, proposed_splits: [] },
+      review_tokens: 125,
     });
     expect(d.groups[0]!.role).toBe('core');
   });
