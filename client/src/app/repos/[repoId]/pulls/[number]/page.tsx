@@ -14,6 +14,7 @@ import { PrDetailHeader } from "./_components/PrDetailHeader";
 import { OverviewTab } from "./_components/OverviewTab";
 import { FindingsTab } from "./_components/FindingsTab";
 import { DiffTab } from "./_components/DiffTab";
+import { buildFindingsRoute } from "./_components/DiffTab/helpers";
 import RunTraceDrawer from "./_components/RunTraceDrawer";
 import { usePullDetail, usePulls } from "../../../../../lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
@@ -150,7 +151,13 @@ export default function PRDetailPage() {
             repoFullName={repoFullName}
             headSha={pr.head_sha}
             initialFindingId={findingParam}
-            onInitialFindingConsumed={() => setParam("finding", null)}
+            // Use an explicit destination instead of deriving this cleanup
+            // navigation from a possibly stale pre-push search-param snapshot.
+            // Under a slow app-router transition that stale snapshot can still
+            // contain tab=diff and undo the marker's navigation.
+            onInitialFindingConsumed={() =>
+              router.replace(buildFindingsRoute(repoId, pr.number))
+            }
             cancelMutation={cancel}
             onOpenTrace={(id) => setParam("trace", id)}
             onDelete={(id) => {
