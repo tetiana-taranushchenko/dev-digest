@@ -19,21 +19,17 @@
     { "cmd": ["find", "role", "button", "click", "--name", "Smart order"], "label": "activate Smart order" },
     { "cmd": ["wait", "--text", "Core logic"], "label": "Core logic group renders" },
     { "cmd": ["wait", "--text", "The substance of the change — review closely"], "label": "instructor group description renders" },
-    {
-      "cmd": ["eval", "(() => { const key = 'devdigest:e2e:smart-diff:navigations'; sessionStorage.setItem(key, '[]'); for (const method of ['pushState', 'replaceState']) { const original = history[method].bind(history); history[method] = (...args) => { const urls = JSON.parse(sessionStorage.getItem(key) ?? '[]'); urls.push(String(args[2] ?? location.href)); sessionStorage.setItem(key, JSON.stringify(urls)); return original(...args); }; } return 'ready'; })()"],
-      "label": "observe application routing for the finding click",
-      "assert": { "stdoutIncludes": "ready" }
-    },
+    { "cmd": ["network", "requests", "--clear"], "label": "clear prior navigation requests" },
     {
       "cmd": ["find", "role", "button", "click", "--name", "Open critical finding Hardcoded Stripe secret key in commit at src/config.ts:12"],
       "label": "open the exact inline finding"
     },
-    {
-      "cmd": ["eval", "(async () => { const key = 'devdigest:e2e:smart-diff:navigations'; const deadline = Date.now() + 10000; while (Date.now() < deadline) { const match = JSON.parse(sessionStorage.getItem(key) ?? '[]').find((url) => url.includes('tab=findings&finding=')); if (match) return match; await new Promise((resolve) => setTimeout(resolve, 50)); } return ''; })()"],
-      "label": "navigate with the exact finding query through application routing",
-      "assert": { "stdoutIncludes": "tab=findings&finding=" }
-    },
     { "cmd": ["wait", "--url", "tab=findings"], "label": "navigate to Agent runs through application routing" },
-    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "the exact FindingCard is visible" }
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "the exact FindingCard is visible" },
+    {
+      "cmd": ["network", "requests", "--filter", "tab=findings&finding="],
+      "label": "route with the exact finding query through application routing",
+      "assert": { "stdoutIncludes": "tab=findings&finding=" }
+    }
   ]
 }
