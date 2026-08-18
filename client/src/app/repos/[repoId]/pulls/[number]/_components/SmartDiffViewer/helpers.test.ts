@@ -74,7 +74,16 @@ const GROUPS: SmartDiffGroup[] = [
         additions: 2,
         deletions: 0,
         pseudocode_summary: null,
-        finding_lines: [10, 20],
+        // "old" and "stale" are deliberately absent — they must never render,
+        // whether excluded upstream (superseded review) or by this id allowlist.
+        line_findings: [
+          { id: "fresh", line: 20, severity: "WARNING" },
+          { id: "current", line: 10, severity: "WARNING" },
+          { id: "warning-new", line: 10, severity: "WARNING" },
+          { id: "critical-z", line: 10, severity: "CRITICAL" },
+          { id: "suggestion", line: 10, severity: "SUGGESTION" },
+          { id: "critical-a", line: 10, severity: "CRITICAL" },
+        ],
       },
     ],
   },
@@ -161,7 +170,7 @@ describe("Smart Diff finding projection", () => {
     expect(projection.latestReviews.map((item) => item.id)).toEqual(["review-a"]);
   });
 
-  it("intersects records with authoritative finding_lines", () => {
+  it("intersects records with authoritative line_findings ids", () => {
     const stale = finding("stale", "review-a", { start_line: 99, end_line: 99 });
     const current = finding("current", "review-a", { start_line: 10, end_line: 10 });
 

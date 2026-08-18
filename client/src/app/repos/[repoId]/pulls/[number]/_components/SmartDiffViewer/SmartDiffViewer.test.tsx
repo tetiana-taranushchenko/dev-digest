@@ -100,12 +100,12 @@ describe("SmartDiffViewer", () => {
       {
         role: "core",
         files: [
-          { path: "src/z-first.ts", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [] },
-          { path: "src/a-second.ts", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [] },
+          { path: "src/z-first.ts", pseudocode_summary: null, additions: 1, deletions: 0, line_findings: [] },
+          { path: "src/a-second.ts", pseudocode_summary: null, additions: 1, deletions: 0, line_findings: [] },
         ],
       },
-      { role: "wiring", files: [{ path: "config.yml", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [] }] },
-      { role: "boilerplate", files: [{ path: "pnpm-lock.yaml", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [] }] },
+      { role: "wiring", files: [{ path: "config.yml", pseudocode_summary: null, additions: 1, deletions: 0, line_findings: [] }] },
+      { role: "boilerplate", files: [{ path: "pnpm-lock.yaml", pseudocode_summary: null, additions: 1, deletions: 0, line_findings: [] }] },
     ];
     const files: PrFile[] = [
       { path: "src/z-first.ts", additions: 1, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+first core line" },
@@ -146,7 +146,18 @@ describe("SmartDiffViewer", () => {
     const groups: SmartDiffGroup[] = [
       {
         role: "core",
-        files: [{ path: "src/core.ts", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [2] }],
+        files: [
+          {
+            path: "src/core.ts",
+            pseudocode_summary: null,
+            additions: 1,
+            deletions: 0,
+            line_findings: [
+              { id: "warning-1", line: 2, severity: "WARNING" },
+              { id: "critical-1", line: 2, severity: "CRITICAL" },
+            ],
+          },
+        ],
       },
     ];
     const files: PrFile[] = [
@@ -174,7 +185,15 @@ describe("SmartDiffViewer", () => {
     const groups: SmartDiffGroup[] = [
       {
         role: "core",
-        files: [{ path: "src/core.ts", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [2] }],
+        files: [
+          {
+            path: "src/core.ts",
+            pseudocode_summary: null,
+            additions: 1,
+            deletions: 0,
+            line_findings: [{ id: "missing-row", line: 2, severity: "WARNING" }],
+          },
+        ],
       },
     ];
     const files: PrFile[] = [
@@ -191,7 +210,7 @@ describe("SmartDiffViewer", () => {
     const groups: SmartDiffGroup[] = [
       {
         role: "core",
-        files: [{ path: "src/core.ts", pseudocode_summary: null, additions: 151, deletions: 0, finding_lines: [] }],
+        files: [{ path: "src/core.ts", pseudocode_summary: null, additions: 151, deletions: 0, line_findings: [] }],
       },
     ];
     const files: PrFile[] = [
@@ -213,7 +232,7 @@ describe("SmartDiffViewer", () => {
 
   it("suppresses token provenance when run data is incomplete", () => {
     const groups: SmartDiffGroup[] = [
-      { role: "core", files: [{ path: "src/core.ts", pseudocode_summary: null, additions: 1, deletions: 0, finding_lines: [] }] },
+      { role: "core", files: [{ path: "src/core.ts", pseudocode_summary: null, additions: 1, deletions: 0, line_findings: [] }] },
     ];
     const files: PrFile[] = [
       { path: "src/core.ts", additions: 1, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+core" },

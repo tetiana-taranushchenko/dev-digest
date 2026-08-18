@@ -21,7 +21,7 @@ export interface SmartDiffFindingProjection {
 }
 
 /** path -> PrFile lookup, built once per render. Smart Diff's own payload
- *  carries no patch text (only role/finding_lines), so the caller resolves
+ *  carries no patch text (only role/line_findings), so the caller resolves
  *  each group's file path against this map to get the actual diff. A path
  *  present in a group but missing from `files` (stale/renamed) has no entry
  *  here — the caller skips it rather than rendering a patch-less card. */
@@ -51,17 +51,17 @@ export function selectLatestReviewRecords(reviews: ReviewRecord[]): ReviewRecord
 
 /**
  * Join full finding records to the fixed SmartDiff contract. The endpoint's
- * `finding_lines` remain authoritative, so stale review-query data can never
- * create an inline marker that the server excluded.
+ * `line_findings` ids remain authoritative, so stale review-query data can
+ * never create an inline marker that the server excluded.
  */
 export function projectSmartDiffFindings(
   groups: SmartDiffGroup[],
   reviews: ReviewRecord[],
 ): SmartDiffFindingProjection {
-  const allowedLinesByPath = new Map<string, Set<number>>();
+  const allowedIdsByPath = new Map<string, Set<string>>();
   for (const group of groups) {
     for (const file of group.files) {
-      allowedLinesByPath.set(file.path, new Set(file.finding_lines));
+      allowedIdsByPath.set(file.path, new Set(file.line_findings.map((lineFinding) => lineFinding.id)));
     }
   }
 
@@ -72,8 +72,8 @@ export function projectSmartDiffFindings(
   for (const review of latestReviews) {
     for (const finding of review.findings) {
       if (finding.dismissed_at != null) continue;
-      const allowedLines = allowedLinesByPath.get(finding.file);
-      if (!allowedLines?.has(finding.start_line)) continue;
+      const allowedIds = allowedIdsByPath.get(finding.file);
+      if (!allowedIds?.has(finding.id)) continue;
 
       let byLine = findingsByPath.get(finding.file);
       if (!byLine) {

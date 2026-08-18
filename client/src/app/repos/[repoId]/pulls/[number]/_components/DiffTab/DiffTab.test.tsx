@@ -47,7 +47,7 @@ const SMART_DATA = {
   groups: [
     {
       role: "core" as const,
-      files: [{ path: "src/example.ts", additions: 1, deletions: 0, finding_lines: [] }],
+      files: [{ path: "src/example.ts", additions: 1, deletions: 0, line_findings: [] }],
     },
   ],
   split_suggestion: { too_big: false, total_lines: 1, proposed_splits: [] },
