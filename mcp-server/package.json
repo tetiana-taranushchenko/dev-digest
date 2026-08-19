@@ -1,0 +1,26 @@
+{
+  "name": "@devdigest/mcp-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "DevDigest local stdio MCP server — a pure HTTP client of the already-running local API (http://localhost:3001) that exposes 5 tools (devdigest_list_agents, devdigest_run_agent_on_pr, devdigest_get_findings, devdigest_get_conventions, devdigest_get_blast_radius) to Claude Desktop / Claude Code over stdio.",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json && node scripts/flatten-dist.mjs",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:unit": "vitest run --exclude \"**/*.it.test.ts\"",
+    "test:it": "vitest run .it.test.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

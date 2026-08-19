@@ -1,0 +1,49 @@
+# mcp-server suite — the local stdio MCP server (@devdigest/mcp-server).
+# A pure HTTP client of the already-running local API; no DB / GitHub / browser.
+# Tests are hermetic (a node:http stub of the DevDigest API). Uses npm (package-lock.json).
+#
+# server/src/vendor/shared/** is in the path filter because mcp-server
+# aliases @devdigest/shared to it at type-check time (type-only import).
+name: mcp-server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mcp-server/**'
+      - 'server/src/vendor/shared/**'
+      - '.github/workflows/mcp-server.yml'
+  pull_request:
+    paths:
+      - 'mcp-server/**'
+      - 'server/src/vendor/shared/**'
+      - '.github/workflows/mcp-server.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcp-server-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mcp-server/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
