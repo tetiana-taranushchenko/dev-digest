@@ -1,4 +1,5 @@
 {
+  "title": "Blast Radius",
   "stat": {
     "symbols": "symbols",
     "callers": "callers",
@@ -11,8 +12,39 @@
   },
   "callerCount": "{count} callers",
   "noDownstream": "{count} changed symbol(s), no downstream callers found.",
+  "symbolFile": "declared in {file}",
+  "endpointsLabel": "endpoints",
+  "showMore": "+{count} more",
+  "showLess": "show less",
+  "empty": {
+    "title": "No downstream impact found",
+    "body": "The index is healthy, but nothing calls into the changed symbols and no endpoints or cron jobs are affected."
+  },
+  "priorPrs": { "title": "Prior PRs touching these files" },
+  "state": {
+    "partial": "Partial results",
+    "degraded": "Degraded index"
+  },
+  "reason": {
+    "index_partial": "The repo-intel index is only partially built, so some callers may be missing.",
+    "caller_cap": "Some symbols have more callers than shown — the list was capped.",
+    "depth_cap": "The reverse-dependency walk stopped at its depth limit — some indirect impact may be missing.",
+    "flag_off": "Repo intelligence is disabled for this repo.",
+    "index_failed": "The repo-intel index failed to build.",
+    "repo_too_large": "This repo is too large to index fully.",
+    "no_data": "No index data is available for this repo yet."
+  },
   "graph": {
     "empty": "No downstream callers to graph.",
-    "ariaLabel": "Blast radius graph"
+    "ariaLabel": "Blast radius graph",
+    "description": "Force-directed graph of {symbols} changed symbols, {callers} callers and {facts} affected endpoints or cron jobs.",
+    "truncated": "+{count} more nodes not shown",
+    "a11yHint": "Switch to the tree view for a keyboard-accessible list of the same data.",
+    "legend": {
+      "symbol": "Changed symbol",
+      "caller": "Caller",
+      "endpoint": "Endpoint",
+      "cron": "Cron / job"
+    }
   }
 }

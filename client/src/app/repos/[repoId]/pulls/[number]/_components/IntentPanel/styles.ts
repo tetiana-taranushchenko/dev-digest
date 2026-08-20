@@ -2,6 +2,12 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for IntentPanel (and its ConfidenceBadge / ScopeList subcomponents). */
 export const s = {
+  card: {
+    background: "var(--bg-card-highlight)",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    padding: 18,
+  } satisfies CSSProperties,
   headerActions: {
     display: "flex",
     alignItems: "center",

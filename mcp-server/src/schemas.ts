@@ -81,11 +81,10 @@ export const getConventionsInputSchema = {
 };
 
 /**
- * devdigest_get_blast_radius(repo, pr) — both required. Kept as repo+pr
- * (unlike devdigest_run_agent_on_pr/devdigest_get_findings, which now take
- * pr_id) since this tool is still a stub — see mcp-server/INSIGHTS.md.
+ * devdigest_get_blast_radius(pr_id) — required. Matches
+ * devdigest_run_agent_on_pr/devdigest_get_findings's pr_id shape now that
+ * this tool is implemented, not a stub.
  */
 export const getBlastRadiusInputSchema = {
-  repo: repoSchema,
-  pr: prSchema,
+  pr_id: prIdSchema,
 };

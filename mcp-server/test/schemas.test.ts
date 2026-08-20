@@ -135,8 +135,8 @@ describe('tool input schemas are raw objects of Zod validators (REQ-5)', () => {
   });
 });
 
-describe('devdigest_get_blast_radius keeps repo + pr both required', () => {
-  it('neither repo nor pr is optional or defaulted', () => {
+describe('devdigest_get_blast_radius takes pr_id, required', () => {
+  it('pr_id is not optional or defaulted', () => {
     for (const [fieldName, validator] of Object.entries(getBlastRadiusInputSchema)) {
       expect(
         validator._def.typeName === z.ZodFirstPartyTypeKind.ZodOptional ||
@@ -146,16 +146,14 @@ describe('devdigest_get_blast_radius keeps repo + pr both required', () => {
     }
   });
 
-  it('rejects a call missing pr, and one missing repo', () => {
-    expect(getBlastRadiusInputSchema.repo.safeParse(undefined).success).toBe(false);
-    expect(getBlastRadiusInputSchema.pr.safeParse(undefined).success).toBe(false);
+  it('rejects a call missing pr_id', () => {
+    expect(getBlastRadiusInputSchema.pr_id.safeParse(undefined).success).toBe(false);
   });
 });
 
 describe('shared field validators are reused across tools, not redefined per tool', () => {
-  it('get_blast_radius reuses the exact same repo/pr validator instances', () => {
-    expect(getBlastRadiusInputSchema.repo).toBe(repoSchema);
-    expect(getBlastRadiusInputSchema.pr).toBe(prSchema);
+  it('get_blast_radius reuses the exact same prId validator instance', () => {
+    expect(getBlastRadiusInputSchema.pr_id).toBe(prIdSchema);
   });
 
   it('get_conventions reuses the exact same repoId validator instance', () => {
@@ -196,97 +194,56 @@ describe('shared-context.ts (REQ-11)', () => {
     devdigest_get_blast_radius: GET_BLAST_RADIUS_DESCRIPTION,
   };
 
-  it('SERVER_INSTRUCTIONS is copied verbatim from the plan', () => {
+  it('SERVER_INSTRUCTIONS matches the current id-based tool contracts', () => {
     expect(SERVER_INSTRUCTIONS).toBe(
-      'DevDigest is a local-first AI PR review tool. A repo is identified as ' +
-        '"owner/name" (its GitHub full name). A PR is identified by its GitHub ' +
-        'number within that repo. An agent is a configured reviewer (a model + ' +
-        'system prompt); look one up with devdigest_list_agents. A run is one ' +
-        'execution of one agent against one PR, identified by a run_id. A finding ' +
-        'is one issue an agent found, with a severity (CRITICAL/WARNING/SUGGESTION), ' +
-        'a file, and a line range.',
+      'DevDigest is a local-first AI PR reviewer. Repositories and pull requests use ' +
+        'their internal repo_id and pr_id in tool calls. Use devdigest_list_agents to ' +
+        'get valid agent_id values. A finding is a review issue with a severity, file, ' +
+        'and line range.',
     );
   });
 
-  it('each of the 5 tool descriptions is exactly one sentence', () => {
+  it('the 5 tool descriptions match their expected text', () => {
     expect(LIST_AGENTS_DESCRIPTION).toBe(
-      'List the reviewer agents configured in this DevDigest workspace (id, name, ' +
-        'model, enabled) — call this first to get a valid agent id for ' +
-        'devdigest_run_agent_on_pr (do not guess or invent one); takes no arguments.',
+      'Lists configured reviewer agents and their IDs, models, and enabled status. ' +
+        'Use an enabled agent_id with devdigest_run_agent_on_pr.',
     );
     expect(RUN_AGENT_ON_PR_DESCRIPTION).toBe(
-      'Run one reviewer agent on a pull request and return the result in one call ' +
-        '(triggers the review, waits up to ~5 min, and returns the verdict and ' +
-        "findings — or, past ~5 min, {status:'still_running', run_id}, in which case " +
-        'call devdigest_get_findings with the same pr_id later); Args: pr_id (the ' +
-        "PR's internal DevDigest id, NOT the GitHub PR number, e.g. " +
-        '"a23e635c-cb87-4230-8bb8-ff3fa63d1c30"), agent_id (an id from ' +
-        'devdigest_list_agents — do not guess it).',
+      'Runs one reviewer agent on a PR and waits up to ~5 min for its verdict and findings. ' +
+        'Requires an internal pr_id (not the GitHub number) and an agent_id from ' +
+        'devdigest_list_agents. If still running, retry devdigest_get_findings later ' +
+        'with the same pr_id.',
     );
     expect(GET_FINDINGS_DESCRIPTION).toBe(
-      'Get the latest review verdict and findings for a pull request, grouped by ' +
-        'agent — Args: pr_id (the same internal DevDigest id devdigest_run_agent_on_pr ' +
-        'takes, e.g. "a23e635c-cb87-4230-8bb8-ff3fa63d1c30"), all_runs (optional ' +
-        "boolean, default false, pass true for every run per agent instead of just " +
-        "each agent's latest); each entry in the result's reviews array is one " +
-        "agent's run ('running' has no findings yet, 'failed'/'cancelled' carries an " +
-        "error, 'done' carries verdict/summary/score/findings with id/review_id " +
-        'always included for the accept/dismiss endpoints), and if pr_id has no ' +
-        'review runs at all the result names devdigest_run_agent_on_pr as the fix.',
+      'Returns review status, verdict, and findings for a PR, grouped by agent. ' +
+        "Requires the PR's internal pr_id; set all_runs=true to include every run " +
+        'instead of only the latest per agent.',
     );
     expect(GET_CONVENTIONS_DESCRIPTION).toBe(
-      "Get this repository's extracted coding conventions (category, rule, " +
-        "evidence_ref, confidence, accepted) to check or justify a finding against " +
-        "the repo's house rules — Args: repo_id (the repo's internal DevDigest id, " +
-        'e.g. "7da92249-2b69-44ce-b4a5-a1baa62853b1" — not its "owner/name"); if ' +
-        'none have been extracted yet, the result points at the Conventions page.',
+      "Returns a repository's extracted coding conventions and supporting evidence. " +
+        "Requires the repository's internal repo_id (not owner/name); use this to check " +
+        'findings against project rules.',
     );
     expect(GET_BLAST_RADIUS_DESCRIPTION).toBe(
-      '⚠️ STUB — not yet implemented, will eventually map which files/symbols a ' +
-        "PR's changes affect elsewhere in the repo (reads repo-intel) — Args: repo " +
-        "(owner/name), pr (the GitHub PR number), both required so the contract " +
-        "won't change later; always returns {status:'not_implemented', ...} with no " +
-        'real data, so do not rely on its output.',
+      "Returns a PR's changed symbols and their downstream callers, HTTP endpoints, " +
+        'and cron jobs from the persisted repo-intel index. Requires the PR\'s internal ' +
+        'pr_id and may return ok, empty, partial, or degraded based on index coverage.',
     );
   });
 
-  it('the glossary sentence content appears in SERVER_INSTRUCTIONS and in none of the 5 tool descriptions', () => {
-    const glossarySentences = [
-      'A repo is identified as',
-      'A PR is identified by its GitHub',
-      'An agent is a configured reviewer',
-      'A run is one execution of one agent against one PR',
-      'A finding is one issue an agent found',
-      'CRITICAL/WARNING/SUGGESTION',
-    ];
-
-    for (const sentence of glossarySentences) {
-      expect(SERVER_INSTRUCTIONS).toContain(sentence);
-    }
-
-    for (const [toolName, description] of Object.entries(toolDescriptions)) {
-      for (const sentence of glossarySentences) {
-        expect(description, `${toolName} must not repeat the glossary`).not.toContain(sentence);
-      }
-    }
+  it('keeps shared identifiers and finding terminology in the server instructions', () => {
+    expect(SERVER_INSTRUCTIONS).toMatch(/internal repo_id and pr_id/);
+    expect(SERVER_INSTRUCTIONS).toMatch(/devdigest_list_agents.*agent_id/s);
+    expect(SERVER_INSTRUCTIONS).toMatch(/finding.*severity, file.*line range/s);
   });
 
-  it('each description gives usage guidance (a "use this / call this" style clue)', () => {
-    const usageGuidancePattern =
-      /call this|use this|identify it (either|by)|args:|do not rely|do not guess/i;
-    for (const [toolName, description] of Object.entries(toolDescriptions)) {
-      expect(description, `${toolName} should state when/how to use it`).toMatch(
-        usageGuidancePattern,
-      );
-    }
-  });
-
-  it('each description contains a concrete example or illustrative format hint', () => {
-    const examplePattern =
-      /e\.g\.|\([a-z_]+\/[a-z_]+\)|\{[^}]*:[^}]*\}|:\s*['"][^'"]+['"]|devdigest_(list_agents|run_agent_on_pr|get_findings|get_conventions|get_blast_radius)/i;
-    for (const [toolName, description] of Object.entries(toolDescriptions)) {
-      expect(description, `${toolName} should give an example`).toMatch(examplePattern);
-    }
+  it('keeps the non-obvious call contract in each compact description', () => {
+    expect(LIST_AGENTS_DESCRIPTION).toMatch(/agent_id.*devdigest_run_agent_on_pr/);
+    expect(RUN_AGENT_ON_PR_DESCRIPTION).toMatch(/internal pr_id.*agent_id/s);
+    expect(RUN_AGENT_ON_PR_DESCRIPTION).toMatch(/devdigest_get_findings.*same pr_id/s);
+    expect(GET_FINDINGS_DESCRIPTION).toMatch(/internal pr_id.*all_runs=true/s);
+    expect(GET_CONVENTIONS_DESCRIPTION).toMatch(/internal repo_id \(not owner\/name\)/);
+    expect(GET_BLAST_RADIUS_DESCRIPTION).toMatch(/internal pr_id.*ok, empty, partial, or degraded/s);
   });
 
   it('every timeout mention is written "~5 min" and the literal string "90" never appears (REQ-7)', () => {
@@ -297,11 +254,13 @@ describe('shared-context.ts (REQ-11)', () => {
     expect(RUN_AGENT_ON_PR_DESCRIPTION).toContain('~5 min');
   });
 
-  it('each of the 5 tool descriptions is exactly one sentence (a single terminal period, "e.g."/"..." aside)', () => {
+  it('each of the 5 tool descriptions is written as a few short sentences (not one dense run-on sentence)', () => {
     for (const [toolName, description] of Object.entries(toolDescriptions)) {
       const periodCount = description.replace(/e\.g\./g, '').replace(/\.\.\./g, '').split('.').length - 1;
-      expect(periodCount, `${toolName} should have exactly one sentence-ending period`).toBe(1);
+      expect(periodCount, `${toolName} should have 2-4 sentence-ending periods`).toBeGreaterThanOrEqual(2);
+      expect(periodCount, `${toolName} should have 2-4 sentence-ending periods`).toBeLessThanOrEqual(4);
       expect(description.trim().endsWith('.'), `${toolName} should end with a period`).toBe(true);
+      expect(description.length, `${toolName} should stay compact`).toBeLessThanOrEqual(260);
     }
   });
 });

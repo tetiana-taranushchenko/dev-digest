@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { IntentAssessment, PrIntentRecord } from '@devdigest/shared';
@@ -45,6 +45,56 @@ export async function getPrCommits(
     .where(eq(t.prCommits.prId, prId))
     .orderBy(desc(t.prCommits.committedAt))
     .limit(limit);
+}
+
+/** One prior PR in the same repo that touched one of the current PR's files. */
+export interface PriorPrRow {
+  number: number;
+  title: string;
+  updatedAt: Date | null;
+}
+
+/**
+ * Other PRs in the same repo (and workspace, REQ-8) that touched at least one
+ * of `params.paths`, deduped one row per PR, newest-first by `updated_at`
+ * (`NULLS LAST` — plain `desc()` is `NULLS FIRST` in Postgres, which would
+ * float never-synced rows to the top), tie-broken by `number` desc for
+ * determinism, capped at `params.limit`. Reference data only — see
+ * `blast/assemble.ts`'s doc block for why this never feeds the blast-radius
+ * state machine.
+ */
+export async function getPriorPrsTouchingFiles(
+  db: Db,
+  params: {
+    workspaceId: string;
+    repoId: string;
+    /** The current PR — always excluded from its own prior-PR list. */
+    excludePrId: string;
+    paths: string[];
+    limit: number;
+  },
+): Promise<PriorPrRow[]> {
+  if (params.paths.length === 0) return [];
+
+  return db
+    .select({
+      number: t.pullRequests.number,
+      title: t.pullRequests.title,
+      updatedAt: t.pullRequests.updatedAt,
+    })
+    .from(t.pullRequests)
+    .innerJoin(t.prFiles, eq(t.prFiles.prId, t.pullRequests.id))
+    .where(
+      and(
+        eq(t.pullRequests.workspaceId, params.workspaceId),
+        eq(t.pullRequests.repoId, params.repoId),
+        ne(t.pullRequests.id, params.excludePrId),
+        inArray(t.prFiles.path, params.paths),
+      ),
+    )
+    .groupBy(t.pullRequests.id)
+    .orderBy(sql`${t.pullRequests.updatedAt} desc nulls last`, desc(t.pullRequests.number))
+    .limit(params.limit);
 }
 
 /**

@@ -12,6 +12,12 @@ import type { PrFile, ReviewRecord } from "@devdigest/shared";
 import { SmartDiffViewer } from "../SmartDiffViewer";
 import { buildFindingRoute } from "./helpers";
 
+/** Bounded retry budget for the one-shot scroll-to-target effect below —
+ *  10 attempts x 50ms = 500ms, enough to cover a render/paint lag without
+ *  turning into an unbounded poll. */
+const SCROLL_RETRY_MAX_ATTEMPTS = 10;
+const SCROLL_RETRY_DELAY_MS = 50;
+
 interface DiffTabProps {
   prId: string | null;
   repoId: string;
@@ -23,6 +29,9 @@ interface DiffTabProps {
   reviews: ReviewRecord[];
   /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
   canComment?: boolean;
+  /** One-shot scroll target — e.g. from a Blast Radius caller row click. */
+  targetFile?: string | null;
+  targetLine?: number | null;
 }
 
 export function DiffTab({
@@ -35,6 +44,8 @@ export function DiffTab({
   files,
   reviews,
   canComment,
+  targetFile,
+  targetLine,
 }: DiffTabProps) {
   const t = useTranslations("smartDiff");
   const router = useRouter();
@@ -48,6 +59,38 @@ export function DiffTab({
   React.useEffect(() => {
     if (!smartAvailable) setMode("original");
   }, [smartAvailable]);
+
+  // Re-attempts (not just a single one-shot pass) because `files` can arrive/
+  // re-render after this effect's first run — e.g. a Blast Radius caller-row
+  // navigation into a PR with many changed files, where the target file's
+  // `data-diff-line` element isn't in the DOM yet on the first pass. Keying on
+  // `files` re-triggers the search once new content renders; the bounded
+  // retry loop covers the remaining gap between a state update committing and
+  // the DOM actually painting the target row.
+  React.useEffect(() => {
+    if (!targetFile || targetLine == null) return;
+
+    let attempts = 0;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const tryScroll = () => {
+      const el = document.querySelector(`[data-diff-line="${targetFile}:${targetLine}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      attempts += 1;
+      if (attempts < SCROLL_RETRY_MAX_ATTEMPTS) {
+        timeoutId = setTimeout(tryScroll, SCROLL_RETRY_DELAY_MS);
+      }
+    };
+
+    tryScroll();
+
+    return () => {
+      if (timeoutId != null) clearTimeout(timeoutId);
+    };
+  }, [targetFile, targetLine, files]);
 
   const commentCount = comments?.length ?? 0;
   const commenting: DiffCommentApi = {
@@ -131,6 +174,7 @@ export function DiffTab({
           files={files}
           reviews={reviews}
           commenting={commenting}
+          targetFile={targetFile}
           onFindingClick={(findingId) => router.push(buildFindingRoute(repoId, prNumber, findingId))}
         />
       ) : (
@@ -140,6 +184,7 @@ export function DiffTab({
           emphasizeLargeFiles
           largeFileLabel={t("largeFile.label")}
           largeFileAriaLabel={(file, lines) => t("largeFile.ariaLabel", { path: file.path, lines })}
+          targetFile={targetFile}
         />
       )}
     </section>

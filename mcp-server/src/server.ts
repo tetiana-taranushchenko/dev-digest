@@ -58,7 +58,7 @@ export function createMcpServer(deps: CreateMcpServerDeps): McpServer {
   });
   registerGetFindingsTool(server, { client: deps.client });
   registerGetConventionsTool(server, { client: deps.client });
-  registerGetBlastRadiusTool(server, {});
+  registerGetBlastRadiusTool(server, { client: deps.client });
 
   return server;
 }

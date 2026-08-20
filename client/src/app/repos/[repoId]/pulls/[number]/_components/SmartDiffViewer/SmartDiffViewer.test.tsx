@@ -57,6 +57,7 @@ function renderViewer(args: {
   reviewTokens?: number | null;
   splitSuggestion?: typeof NO_SPLIT;
   onFindingClick?: (id: string) => void;
+  targetFile?: string | null;
 }) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ smartDiff: smartDiffMessages, shell: shellMessages }}>
@@ -67,6 +68,7 @@ function renderViewer(args: {
         reviewTokens={args.reviewTokens ?? null}
         splitSuggestion={args.splitSuggestion ?? NO_SPLIT}
         onFindingClick={args.onFindingClick ?? vi.fn()}
+        targetFile={args.targetFile}
       />
     </NextIntlClientProvider>,
   );
@@ -219,5 +221,39 @@ describe("SmartDiffViewer", () => {
     renderViewer({ groups, files, reviews: [review([])], reviewTokens: null });
 
     expect(screen.queryByText(/0 new tokens/)).not.toBeInTheDocument();
+  });
+
+  it("forces open the boilerplate group and file card containing targetFile, leaving other groups/files at their default", () => {
+    const groups: SmartDiffGroup[] = [
+      {
+        role: "core",
+        files: [{ path: "src/core.ts", pseudocode_summary: null, additions: 1, deletions: 0, line_findings: [] }],
+      },
+      {
+        role: "boilerplate",
+        files: [
+          { path: "pnpm-lock.yaml", pseudocode_summary: null, additions: 1, deletions: 0, line_findings: [] },
+          { path: "src/large-target.ts", pseudocode_summary: null, additions: 999, deletions: 0, line_findings: [] },
+        ],
+      },
+    ];
+    const files: PrFile[] = [
+      { path: "src/core.ts", additions: 1, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+core line" },
+      { path: "pnpm-lock.yaml", additions: 1, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+lock line" },
+      { path: "src/large-target.ts", additions: 999, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+target line" },
+    ];
+
+    renderViewer({ groups, files, targetFile: "src/large-target.ts" });
+
+    // The boilerplate group normally starts collapsed, but it's forced open
+    // because it contains the target file.
+    const boilerplate = screen.getByRole("button", { name: /Boilerplate/ });
+    expect(boilerplate).toHaveAttribute("aria-expanded", "true");
+    // The targeted file's lines render even though its size would normally
+    // auto-collapse its FileCard.
+    expect(screen.getByText("target line")).toBeInTheDocument();
+    // A sibling file in the same forced-open group keeps its own default —
+    // it's small, so it renders too (not forced, just naturally expanded).
+    expect(screen.getByText("lock line")).toBeInTheDocument();
   });
 });

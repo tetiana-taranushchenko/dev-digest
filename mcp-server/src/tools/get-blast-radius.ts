@@ -1,29 +1,48 @@
-// `devdigest_get_blast_radius` — a deliberate, typed stub (REQ-14).
+// `devdigest_get_blast_radius` — resolves `pr_id` (the PR's internal
+// DevDigest id) to a `{id, number}` via the shared `resolvePullById`
+// resolver (`api/resolve.ts`) and wraps `GET /pulls/:id/blast`
+// (`server/src/modules/blast/routes.ts:26`), trimmed to the fields a caller
+// needs to reason about a PR's downstream impact: `{ status, message?,
+// pr_id, index_status, truncated, changed_symbols, downstream: [{ symbol,
+// file, caller_count, callers, endpoints_affected, crons_affected }] }`.
 //
-// Its input schema is already the final one: `repo` + `pr`, both required,
-// identical to `devdigest_run_agent_on_pr`'s pair (`getBlastRadiusInputSchema`,
-// `schemas.ts`) — so the schema will not change when the real implementation
-// lands. The handler makes **no HTTP call at all** (no client method
-// invocation, no resolver call) and always returns `isError: false` with
-// `{ status: 'not_implemented', message, repo, pr }`.
+// This tool now matches `devdigest_run_agent_on_pr`/`devdigest_get_findings`'s
+// `pr_id` input shape — it kept a `repo` + `pr` shape only while it was still
+// a stub (`mcp-server/INSIGHTS.md`, "2026-08-20 — devdigest_run_agent_on_pr
+// switched..."), and that reason no longer applies now that this tool calls
+// the real `GET /pulls/:id/blast` route.
 //
-// TODO(real Blast Radius): the future real data source is
-// `server/src/modules/repo-intel/` — but no HTTP endpoint exposes blast
-// radius today. `repo-intel/routes.ts` only serves
-// `GET /repos/:id/index-state` and `POST /repos/:id/resync`
-// (verified this session); a real implementation will need a **new server
-// endpoint**, which is explicitly out of scope for this plan (see
-// docs/plans/mcp-server.md, "Out of Scope").
+// The caller list is passed through as-is — the server has already applied
+// `MAX_CALLERS_PER_SYMBOL`, so this tool's output and the PR-Overview UI's
+// BLAST RADIUS card stay comparable 1:1.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { DevDigestApiClient } from '../api/client.js';
+import { ApiError } from '../api/client.js';
+import { resolvePullById, ResolveError } from '../api/resolve.js';
 import { getBlastRadiusInputSchema } from '../schemas.js';
 import { GET_BLAST_RADIUS_DESCRIPTION } from './shared-context.js';
 
-// No dependencies are needed — the stub makes no HTTP call, so it takes no
-// API client. Typed as a permissive `object` (rather than an empty
-// interface with lint noise) so a caller passing a larger shared deps bag
-// (e.g. one that also carries `client` for the other tools) still type-checks.
-export type GetBlastRadiusDeps = object;
+export interface GetBlastRadiusDeps {
+  client: DevDigestApiClient;
+}
+
+/** One caller row this tool returns, trimmed from `BlastCaller` (`contracts/brief.ts:68-73`). */
+interface CallerSummary {
+  file: string;
+  line: number;
+  name: string;
+}
+
+/** One `downstream[]` entry this tool returns, trimmed from `DownstreamImpact` (`contracts/brief.ts:90-101`). */
+interface DownstreamSummary {
+  symbol: string;
+  file: string;
+  caller_count: number;
+  callers: CallerSummary[];
+  endpoints_affected: string[];
+  crons_affected: string[];
+}
 
 function textResult(data: unknown, isError = false): CallToolResult {
   return {
@@ -32,8 +51,44 @@ function textResult(data: unknown, isError = false): CallToolResult {
   };
 }
 
+/** Every failure path surfaces `err.message` verbatim (REQ-8) — `ResolveError`/`ApiError` messages are already actionable. */
+function errorResult(err: unknown): CallToolResult {
+  const message =
+    err instanceof ResolveError || err instanceof ApiError || err instanceof Error
+      ? err.message
+      : String(err);
+  return textResult({ status: 'error', message }, true);
+}
+
+/**
+ * Passes the server's caller list through unchanged — REQ-11 (T11 notes):
+ * do not trim it further than `MAX_CALLERS_PER_SYMBOL` already did
+ * server-side, only re-key the field order for a stable output shape.
+ */
+function toDownstreamSummary(downstream: {
+  symbol: string;
+  file: string;
+  caller_count: number;
+  callers: Array<{ file: string; line: number; name: string }>;
+  endpoints_affected: string[];
+  crons_affected: string[];
+}): DownstreamSummary {
+  return {
+    symbol: downstream.symbol,
+    file: downstream.file,
+    caller_count: downstream.caller_count,
+    callers: downstream.callers.map((caller) => ({
+      file: caller.file,
+      line: caller.line,
+      name: caller.name,
+    })),
+    endpoints_affected: downstream.endpoints_affected,
+    crons_affected: downstream.crons_affected,
+  };
+}
+
 /** Registers `devdigest_get_blast_radius` on `server` (REQ-5's namespaced name). */
-export function registerGetBlastRadiusTool(server: McpServer, _deps: GetBlastRadiusDeps): void {
+export function registerGetBlastRadiusTool(server: McpServer, deps: GetBlastRadiusDeps): void {
   server.registerTool(
     'devdigest_get_blast_radius',
     {
@@ -41,19 +96,62 @@ export function registerGetBlastRadiusTool(server: McpServer, _deps: GetBlastRad
       inputSchema: getBlastRadiusInputSchema,
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
-    async ({ repo, pr }): Promise<CallToolResult> => {
-      // No HTTP call, no resolver call — REQ-14. This is a stub.
-      return textResult(
-        {
-          status: 'not_implemented',
+    async ({ pr_id }): Promise<CallToolResult> => {
+      let pull;
+      try {
+        pull = await resolvePullById(deps.client, pr_id);
+      } catch (err) {
+        return errorResult(err);
+      }
+
+      let blast;
+      try {
+        blast = await deps.client.getBlastRadius(pull.id);
+      } catch (err) {
+        const message = err instanceof ApiError ? err.message : String(err);
+        return textResult(
+          {
+            status: 'error',
+            message:
+              `Failed to get the blast radius for PR #${pull.number}: ` +
+              `${message}. Confirm the DevDigest studio is running and reachable, then retry ` +
+              'devdigest_get_blast_radius.',
+          },
+          true,
+        );
+      }
+
+      const projection = {
+        pr_id: pull.id,
+        index_status: blast.index_status,
+        truncated: blast.truncated,
+        changed_symbols: blast.changed_symbols,
+        downstream: blast.downstream.map(toDownstreamSummary),
+      };
+
+      // REQ-8: never a bare empty array/object — every non-'ok' state carries
+      // an actionable `message`.
+      if (blast.state === 'empty') {
+        return textResult({
+          status: 'empty',
           message:
-            'devdigest_get_blast_radius is not implemented yet — it always returns this stub ' +
-            'response with no real data. Do not rely on its output.',
-          repo,
-          pr,
-        },
-        false,
-      );
+            blast.reason_text ??
+            `PR #${pull.number} has no downstream impact — its changed symbols have no known ` +
+              'callers, endpoints, or crons.',
+          ...projection,
+        });
+      }
+
+      if (blast.state === 'partial' || blast.state === 'degraded') {
+        return textResult({
+          status: blast.state,
+          message:
+            blast.reason_text ?? `Blast radius result for PR #${pull.number} is ${blast.state}.`,
+          ...projection,
+        });
+      }
+
+      return textResult({ status: 'ok', ...projection });
     },
   );
 }

@@ -33,6 +33,7 @@ vi.mock("../SmartDiffViewer", () => ({
 }));
 
 import { DiffTab } from "./DiffTab";
+import { AUTO_EXPAND_MAX_LINES } from "@/components/diff-viewer/constants";
 
 afterEach(() => {
   cleanup();
@@ -144,5 +145,96 @@ describe("DiffTab", () => {
     });
 
     expect(screen.getByLabelText("Large file src/large.ts: 151 changed lines")).toBeInTheDocument();
+  });
+
+  it("scrolls to the exact diff line when targetFile/targetLine are provided", () => {
+    const scrollIntoView = vi.fn();
+    // jsdom doesn't implement scrollIntoView.
+    Element.prototype.scrollIntoView = scrollIntoView;
+    useSmartDiff.mockReturnValue({ data: SMART_DATA });
+
+    renderDiffTab({ targetFile: "src/example.ts", targetLine: 1 });
+
+    const target = document.querySelector('[data-diff-line="src/example.ts:1"]');
+    expect(target).not.toBeNull();
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+  });
+
+  it("still scrolls to the target line when the diff content arrives after the effect's first pass (race condition regression)", async () => {
+    const scrollIntoView = vi.fn();
+    // jsdom doesn't implement scrollIntoView.
+    Element.prototype.scrollIntoView = scrollIntoView;
+    useSmartDiff.mockReturnValue({ data: SMART_DATA });
+
+    const qc = new QueryClient();
+    const tree = (files: PrFile[]) => (
+      <QueryClientProvider client={qc}>
+        <NextIntlClientProvider locale="en" messages={{ shell: shellMessages, smartDiff: smartDiffMessages }}>
+          <DiffTab
+            prId="pr-1"
+            repoId="repo-1"
+            prNumber={42}
+            filesCount={9}
+            additions={247}
+            deletions={38}
+            files={files}
+            reviews={[]}
+            targetFile="src/example.ts"
+            targetLine={1}
+          />
+        </NextIntlClientProvider>
+      </QueryClientProvider>
+    );
+
+    // First render: the file/diff list hasn't loaded yet (e.g. a Blast Radius
+    // navigation into a PR with many changed files, before the async data
+    // arrives) — no `data-diff-line` element exists yet, so the effect's
+    // first pass finds nothing.
+    const { rerender } = render(tree([]));
+    expect(document.querySelector('[data-diff-line="src/example.ts:1"]')).toBeNull();
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    // The diff content arrives on a later render/tick.
+    rerender(tree(FILES));
+
+    expect(await screen.findByText("example line")).toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+    });
+  });
+
+  it("scrolls to the target line inside a large file whose FileCard would otherwise start collapsed", async () => {
+    // Regression test: a file this size auto-collapses (FileCard's
+    // AUTO_EXPAND_MAX_LINES rule), so its `data-diff-line` rows don't exist
+    // in the DOM at all until forced open — no amount of scroll-effect
+    // retrying finds an element that was never rendered. Build a patch with
+    // one hunk of >AUTO_EXPAND_MAX_LINES added lines so the target line is a
+    // real rendered row once the card is forced open.
+    const lines = Array.from({ length: AUTO_EXPAND_MAX_LINES + 1 }, (_, i) => `+line ${i + 1}`).join("\n");
+    const largeFile: PrFile = {
+      path: "src/large-target.ts",
+      additions: AUTO_EXPAND_MAX_LINES + 1,
+      deletions: 0,
+      patch: `@@ -0,0 +1,${AUTO_EXPAND_MAX_LINES + 1} @@\n${lines}`,
+    };
+
+    const scrollIntoView = vi.fn();
+    // jsdom doesn't implement scrollIntoView.
+    Element.prototype.scrollIntoView = scrollIntoView;
+    useSmartDiff.mockReturnValue({ data: SMART_DATA });
+
+    renderDiffTab({
+      files: [largeFile],
+      targetFile: "src/large-target.ts",
+      targetLine: AUTO_EXPAND_MAX_LINES + 1,
+    });
+
+    const target = document.querySelector(
+      `[data-diff-line="src/large-target.ts:${AUTO_EXPAND_MAX_LINES + 1}"]`,
+    );
+    expect(target).not.toBeNull();
+    await vi.waitFor(() => {
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+    });
   });
 });

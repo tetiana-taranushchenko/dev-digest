@@ -6,12 +6,9 @@ grounded structured findings). Fastify 5 + Drizzle ORM over Postgres (pgvector).
 Adapters (LLM, GitHub, git, ast-grep, …) sit behind a DI container so they can be
 swapped for mocks in tests.
 
-> This is the **starter** module set. Later course lessons add their own modules
-> (skills, intent/smart-diff, blast, brief/context/onboarding, eval/ci/hooks,
-> memory, plugins, …) — each is a self-contained `modules/<name>/` plugin plus,
-> usually, a slot it starts feeding the reviewer prompt. The DB schema already
-> contains **every** table; the unused ones simply sit empty until a lesson fills
-> them.
+Feature modules stay self-contained under `modules/<name>/` and register
+statically. Blast Radius is the `blast` module (`src/modules/index.ts:14,42`);
+later lessons add their modules through the same registry.
 
 - **Stack:** Fastify 5 (`@fastify/helmet`, `@fastify/rate-limit`, `@fastify/cors`,
   `fastify-sse-v2` for streaming run traces), Drizzle ORM, `postgres`, pgvector.
@@ -57,7 +54,7 @@ flowchart LR
 - Modules are registered statically in `src/modules/index.ts` (one import + one
   `app.register` each); the engine reaps orphaned `running` runs on boot.
 
-## API map (starter)
+## API map
 
 Each module owns its routes (`modules/<name>/routes.ts`). Grouped by domain:
 
@@ -72,6 +69,7 @@ flowchart TB
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
     intent["intent<br/>GET/POST /pulls/:id/intent"]
     smartDiff["smart-diff<br/>GET /pulls/:id/smart-diff"]
+    blast["blast<br/>GET /pulls/:id/blast"]
   end
   subgraph Agents["Agents"]
     agents["agents<br/>/agents · /agents/:id"]
@@ -85,6 +83,14 @@ flowchart TB
   end
   HEALTH["/health (liveness) · /health/ready (DB ping → 200/503)"]
 ```
+
+`GET /pulls/:id/blast` resolves the PR's changed files, checks the repo index,
+then reads changed symbols, callers, and reverse-import impact through the
+`repoIntel` facade (`src/modules/blast/service.ts:65-99`). Its response keeps
+`ok`, `empty`, `partial`, and `degraded` distinct, with a machine reason and
+human-readable explanation for non-`ok` results
+(`src/modules/blast/assemble.ts:207-225`,
+`src/vendor/shared/contracts/brief.ts:117-135`).
 
 ## Environment
 

@@ -6,8 +6,7 @@ the already-running local DevDigest API (`http://localhost:3001` by default) —
 no database, no filesystem access to another package's code, no HTTP listener
 of its own. It exposes 5 namespaced tools (`devdigest_*`) that let an MCP
 client list agents, trigger a review and wait for its result, page through
-findings, read a repo's extracted conventions, and — as a deliberate stub —
-ask for a PR's blast radius.
+findings, read a repo's extracted conventions, and get a PR's blast radius.
 
 ## How it fits together
 
@@ -22,8 +21,9 @@ The MCP client spawns `dist/index.js` as a subprocess and talks JSON-RPC over
 its stdin/stdout (`src/index.ts:38-39`); `mcp-server` in turn calls the local
 DevDigest API over plain `fetch` (`src/api/client.ts:72-197`). **The DevDigest
 studio (`./scripts/dev.sh` from the repo root) must already be running on
-`:3001`** for every tool except `devdigest_get_blast_radius` — that one makes
-no HTTP call at all (`src/tools/get-blast-radius.ts:44-57`).
+`:3001`** — every one of the 5 tools, including `devdigest_get_blast_radius`,
+makes at least one HTTP call to it (`src/tools/get-blast-radius.ts` resolves
+`pr_id`, then calls `GET /pulls/:id/blast`).
 
 ## The 5 tools
 
@@ -33,7 +33,7 @@ no HTTP call at all (`src/tools/get-blast-radius.ts:44-57`).
 | `devdigest_run_agent_on_pr` | `pr_id` (the PR's **internal** DevDigest id, not the GitHub PR number), `agent_id` (id or name) | `readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true` | The only mutating tool — one call does resolve → trigger → poll → fetch (`src/tools/run-agent-on-pr.ts:256-261`). Find `pr_id` in the DevDigest app (e.g. the `id` field in `GET /repos/:id/pulls`'s response, visible in the browser's network tab) or `GET /pulls/:id` |
 | `devdigest_get_findings` | `pr_id` (same internal id as `devdigest_run_agent_on_pr`), `all_runs?` (default `false`) | `readOnlyHint: true, destructiveHint: false` | Gets the latest verdict + findings per agent for a PR, grouped by agent; `all_runs: true` returns every run instead of just each agent's latest (`src/tools/get-findings.ts:81`) |
 | `devdigest_get_conventions` | `repo_id` (the repo's **internal** DevDigest id, not "owner/name") | `readOnlyHint: true, destructiveHint: false` | Returns `{ category, rule, evidence_ref, confidence, accepted }` per convention (`src/tools/get-conventions.ts:32-38,71`) |
-| `devdigest_get_blast_radius` | `repo`, `pr` (both required) | `readOnlyHint: true, destructiveHint: false` | **Stub** — always `{status:'not_implemented',...}`, makes no HTTP call (`src/tools/get-blast-radius.ts:1-8,42-57`) |
+| `devdigest_get_blast_radius` | `pr_id` (the PR's **internal** DevDigest id, same as devdigest_run_agent_on_pr) | `readOnlyHint: true, destructiveHint: false` | Resolves `pr_id`, then calls `GET /pulls/:id/blast`; returns `{ status, message?, pr_id, index_status, truncated, changed_symbols, downstream }` where `status` is `ok`/`empty`/`partial`/`degraded` (`src/tools/get-blast-radius.ts`) |
 
 Annotation values above are read verbatim from each tool's `registerTool(...)`
 call, not from the plan — see the `file:line` refs in each row.

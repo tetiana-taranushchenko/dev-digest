@@ -33,6 +33,7 @@ graduated-layering rule.
 | `smart-diff` | Full split | routes, service, classify, assemble, constants — reuses `reviews/repository.ts`, no new repository | Coordinates two data sources (`pr_files` + each agent's latest review's findings) and derives a risk-ordered grouping; no persistence |
 | `skills` | Full split | routes, service, repository, stats.repo, constants, contracts, helpers, injection-scan, extract, fetch-url, community-catalog | CRUD + version history plus the trust gate for imported/community skills (untrusted-source detection, injection-risk scan before enabling) |
 | `conventions` | Full split | routes, service, repository, extractor, contracts | Coordinates multiple sources (repo repository, `SkillsService`, `ConventionsExtractor`) and derives grounded convention candidates before turning accepted ones into a skill body |
+| `blast` | Full split | routes, service, assemble, constants — reuses `reviews/repository.ts` (via `container.reviewRepo`), no new repository | Coordinates multiple `container.repoIntel` reads (blast radius, index state, reverse impact) in parallel and derives a risk-grouped downstream-impact view via the pure `assemble.ts`; no persistence. Mirrors `smart-diff` |
 | `settings` | Flat | routes, constants, feature-models, helpers | Read/write config + BYO-key test-connection; no cross-source coordination |
 | `polling` | Flat | routes only | Pure trigger-a-sync endpoint |
 | `workspace` | Flat | routes only | Pure CRUD |

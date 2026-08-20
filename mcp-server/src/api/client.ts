@@ -11,6 +11,7 @@ import {
   AgentResponse,
   ApiError,
   ApiErrorEnvelope,
+  BlastRadiusResponse,
   ConventionCandidateResponse,
   HealthResponse,
   PrDetailResponse,
@@ -22,6 +23,7 @@ import {
 } from './types.js';
 import type {
   Agent,
+  BlastRadius,
   ConventionCandidate,
   HealthResponse as Health,
   PrMeta,
@@ -149,6 +151,18 @@ export class DevDigestApiClient {
     const path = `/repos/${encodeURIComponent(repoId)}/conventions`;
     const data = await this.request('GET', path, undefined, timeoutMs);
     return z.array(ConventionCandidateResponse).parse(data) as ConventionCandidate[];
+  }
+
+  /**
+   * `GET /pulls/:id/blast` (`server/src/modules/blast/routes.ts:26`) — the
+   * Blast Radius view: changed symbols, their callers, and reachable HTTP
+   * endpoints/cron jobs, derived from the persisted repo-intel index only
+   * (no AST/import-graph recomputation, no LLM call on this path).
+   */
+  async getBlastRadius(prId: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<BlastRadius> {
+    const path = `/pulls/${encodeURIComponent(prId)}/blast`;
+    const data = await this.request('GET', path, undefined, timeoutMs);
+    return BlastRadiusResponse.parse(data) as BlastRadius;
   }
 
   /** `GET /health` (`server/src/app.ts:112`), rate-limit exempt — used for the startup connectivity check. */

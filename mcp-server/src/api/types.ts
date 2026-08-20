@@ -16,6 +16,7 @@
 import { z } from 'zod';
 import type {
   Agent,
+  BlastRadius,
   ConventionCandidate,
   PrMeta,
   Repo,
@@ -23,7 +24,7 @@ import type {
   RunSummary,
 } from '@devdigest/shared';
 
-export type { Agent, ConventionCandidate, PrMeta, Repo, ReviewRecord, RunSummary };
+export type { Agent, BlastRadius, ConventionCandidate, PrMeta, Repo, ReviewRecord, RunSummary };
 
 /** Uniform error envelope returned by the API on non-2xx responses (`server/src/app.ts:131-174`). */
 export const ApiErrorEnvelope = z
@@ -151,6 +152,53 @@ export const ConventionCandidateResponse = z
     evidence_ref: z.string(),
     confidence: z.number(),
     accepted: z.boolean(),
+  })
+  .passthrough();
+
+/** One entry of a `DownstreamImpact.callers` array (`contracts/brief.ts:68-73`). */
+export const BlastCallerResponse = z
+  .object({
+    name: z.string(),
+    file: z.string(),
+    line: z.number().int(),
+  })
+  .passthrough();
+
+/** One entry of `BlastRadius.changed_symbols` (`contracts/brief.ts:61-66`). */
+export const ChangedSymbolResponse = z
+  .object({
+    name: z.string(),
+    file: z.string(),
+    kind: z.string(),
+  })
+  .passthrough();
+
+/** One entry of `BlastRadius.downstream` (`contracts/brief.ts:90-101`). */
+export const DownstreamImpactResponse = z
+  .object({
+    symbol: z.string(),
+    file: z.string(),
+    caller_count: z.number().int(),
+    callers: z.array(BlastCallerResponse),
+    endpoints_affected: z.array(z.string()),
+    crons_affected: z.array(z.string()),
+  })
+  .passthrough();
+
+/**
+ * `GET /pulls/:id/blast` response (`contracts/brief.ts:103-118`). `summary`
+ * is deliberately not modelled — this package never renders it, and the
+ * field is `''` unless the optional server-side LLM summary ran.
+ */
+export const BlastRadiusResponse = z
+  .object({
+    changed_symbols: z.array(ChangedSymbolResponse),
+    downstream: z.array(DownstreamImpactResponse),
+    state: z.enum(['ok', 'empty', 'partial', 'degraded']),
+    reason: z.string().nullish(),
+    reason_text: z.string().nullish(),
+    truncated: z.boolean(),
+    index_status: z.enum(['full', 'partial', 'degraded', 'failed', 'missing']),
   })
   .passthrough();
 

@@ -87,6 +87,51 @@ export interface BlastResult {
 }
 
 // ---------------------------------------------------------------------------
+// Reverse impact (facade method `getReverseImpact`, T3). Walks the import
+// graph BACKWARD from the changed files — "who depends on this?" — up to
+// `BFS_DEPTH` hops via `repository.getImporters` (the reverse-lookup over
+// `file_edges_repo_to_idx`), then attaches per-file facts (endpoints/crons)
+// for the visited set with a single `getFileFacts` call.
+// ---------------------------------------------------------------------------
+
+export interface ReverseImpactResult {
+  /**
+   * Files reachable by walking the reverse import graph from the changed
+   * files, up to `BFS_DEPTH` hops. Excludes the original `changedFiles`.
+   */
+  files: string[];
+  /** Union of endpoints attributable to any visited file. */
+  endpoints: string[];
+  /** Union of crons attributable to any visited file. */
+  crons: string[];
+  /**
+   * Per-visited-file endpoints/crons, so consumers (blast) can attribute
+   * impact back to the specific file that declares it.
+   */
+  byFile: Record<string, { endpoints: string[]; crons: string[] }>;
+  /**
+   * Provenance: for each visited file, which of the ORIGINAL `changedFiles`
+   * reached it during the BFS (a file can be reached from more than one
+   * origin, e.g. a shared downstream dependency). This is what lets a
+   * multi-origin consumer (blast/assemble.ts) scope facts to only the
+   * origin file it cares about, instead of treating the whole batched
+   * result as one flat, origin-less set. Populated without any extra
+   * `getImporters` round-trips — the BFS already processes a frontier per
+   * round, so provenance is propagated forward from each frontier file's
+   * own origin-set as edges are discovered.
+   */
+  originsByFile: Record<string, string[]>;
+  /**
+   * True when the BFS was still finding new, unvisited files at the depth
+   * cutoff — i.e. there was more graph beyond what `BFS_DEPTH` allowed it to
+   * explore (as opposed to the walk having genuinely exhausted the graph).
+   */
+  depthLimited: boolean;
+  degraded?: boolean;
+  reason?: DegradedReason;
+}
+
+// ---------------------------------------------------------------------------
 // Read-model rows.
 // ---------------------------------------------------------------------------
 
@@ -169,4 +214,11 @@ export interface RepoIntel {
     opts?: { exclude?: string[] },
   ): Promise<string[]>;
   getCriticalPaths(repoId: string): Promise<string[][]>;
+
+  /**
+   * Reverse import-graph walk from `changedFiles` outward ("who depends on
+   * this?"), up to `BFS_DEPTH` hops. Used by `blast/` to attribute HTTP
+   * endpoints/crons reachable transitively from a changed file.
+   */
+  getReverseImpact(repoId: string, changedFiles: string[]): Promise<ReverseImpactResult>;
 }

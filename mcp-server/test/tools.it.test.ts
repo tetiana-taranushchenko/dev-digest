@@ -103,6 +103,32 @@ const REVIEW_PAGINATED = {
   findings: PAGINATED_FINDINGS,
 };
 
+// `GET /pulls/:id/blast` fixture for PULL — one changed symbol with two
+// callers and one affected endpoint, `state: 'ok'`.
+const BLAST_RADIUS = {
+  changed_symbols: [{ name: 'chargeCard', file: 'src/billing.ts', kind: 'function' }],
+  downstream: [
+    {
+      symbol: 'chargeCard',
+      file: 'src/billing.ts',
+      caller_count: 2,
+      callers: [
+        { name: 'checkout', file: 'src/checkout.ts', line: 42 },
+        { name: 'refund', file: 'src/refund.ts', line: 11 },
+      ],
+      endpoints_affected: ['POST /api/checkout'],
+      crons_affected: [],
+    },
+  ],
+  summary: '',
+  state: 'ok',
+  reason: null,
+  reason_text: null,
+  truncated: false,
+  index_status: 'full',
+  generated_at: '2026-08-20T00:00:00.000Z',
+};
+
 /**
  * A minimal, real `node:http` server implementing exactly the endpoints
  * `mcp-server`'s API client calls (`GET /repos`, `GET /repos/:id/pulls`,
@@ -208,6 +234,10 @@ function createApiStub(): { server: Server; baseUrl: string; getRequestCount: ()
     }
     if (method === 'GET' && path === `/pulls/${PULL_PAGINATED.id}/reviews`) {
       sendJson(res, 200, [REVIEW_PAGINATED]);
+      return;
+    }
+    if (method === 'GET' && path === `/pulls/${PULL.id}/blast`) {
+      sendJson(res, 200, BLAST_RADIUS);
       return;
     }
 
@@ -413,25 +443,29 @@ describe('mcp-server integration (real HTTP stub + real MCP protocol)', () => {
     expect(body.message).toMatch(/internal DevDigest id/);
   });
 
-  it('devdigest_get_blast_radius returns not_implemented with isError:false and makes zero HTTP requests', async () => {
-    const requestCountBefore = stub.getRequestCount();
-
+  it('devdigest_get_blast_radius resolves pr_id -> pull -> GET /pulls/:id/blast against the real stub, returning status: ok', async () => {
     const result = await client.callTool({
       name: 'devdigest_get_blast_radius',
-      arguments: { repo: REPO.full_name, pr: PULL.number },
+      arguments: { pr_id: PULL.id },
     });
 
     expect(result.isError).toBe(false);
     const body = parseResultText(result as never) as {
       status: string;
-      repo: string;
-      pr: number;
+      pr_id: string;
+      index_status: string;
+      truncated: boolean;
+      downstream: Array<{ symbol: string; caller_count: number; callers: unknown[] }>;
     };
-    expect(body.status).toBe('not_implemented');
-    expect(body.repo).toBe(REPO.full_name);
-    expect(body.pr).toBe(PULL.number);
-
-    // REQ-14: the stub must have received zero additional requests for this call.
-    expect(stub.getRequestCount()).toBe(requestCountBefore);
+    expect(body.status).toBe('ok');
+    expect(body.pr_id).toBe(PULL.id);
+    expect(body.index_status).toBe('full');
+    expect(body.truncated).toBe(false);
+    expect(body.downstream).toHaveLength(1);
+    expect(body.downstream[0]!.caller_count).toBe(2);
+    expect(body.downstream[0]!.callers).toEqual([
+      { file: 'src/checkout.ts', line: 42, name: 'checkout' },
+      { file: 'src/refund.ts', line: 11, name: 'refund' },
+    ]);
   });
 });

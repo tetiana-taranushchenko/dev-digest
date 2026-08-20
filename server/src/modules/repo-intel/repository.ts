@@ -130,6 +130,12 @@ export interface ResolvedCallerRow {
   rank: number;
 }
 
+/** Import-graph edge row returned by the reverse-lookup (`getImporters`). */
+export interface ImporterEdgeRow {
+  fromFile: string;
+  toFile: string;
+}
+
 export class RepoIntelRepository {
   constructor(private db: Db) {}
 
@@ -528,6 +534,22 @@ export class RepoIntelRepository {
           inArray(t.references.toSymbol, names),
         ),
       );
+  }
+
+  /**
+   * Reverse-lookup: which files import (depend on) any of `toFiles`? This is
+   * the "who depends on this file?" read `getReverseImpact` (T3) walks
+   * outward with, one BFS round at a time. Uses the `file_edges_repo_to_idx
+   * (repo_id, to_file)` index (`db/schema/repo-intel.ts:50-68`) — O(degree)
+   * per file, never a full-table scan (unlike `getEdges`, which is the
+   * forward full-table read `getCriticalPaths` uses).
+   */
+  async getImporters(repoId: string, toFiles: string[]): Promise<ImporterEdgeRow[]> {
+    if (toFiles.length === 0) return [];
+    return this.db
+      .select({ fromFile: t.fileEdges.fromFile, toFile: t.fileEdges.toFile })
+      .from(t.fileEdges)
+      .where(and(eq(t.fileEdges.repoId, repoId), inArray(t.fileEdges.toFile, toFiles)));
   }
 
   /** Per-file facts (endpoints/crons) for the given files. */

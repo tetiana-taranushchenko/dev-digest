@@ -17,12 +17,19 @@ export function DiffViewer({
   emphasizeLargeFiles = false,
   largeFileLabel,
   largeFileAriaLabel,
+  targetFile,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
   emphasizeLargeFiles?: boolean;
   largeFileLabel?: string;
   largeFileAriaLabel?: (file: PrFile, changedLines: number) => string;
+  /** When set, forces the matching file's card open regardless of its size —
+   *  e.g. a Blast Radius/Findings caller-row navigation targeting a line
+   *  inside a file large enough to auto-collapse (see FileCard's
+   *  AUTO_EXPAND_MAX_LINES rule). Every other file keeps its normal
+   *  size-based default. */
+  targetFile?: string | null;
 }) {
   const t = useTranslations("shell");
   if (!files || files.length === 0) {
@@ -35,6 +42,7 @@ export function DiffViewer({
           key={i}
           file={f}
           commenting={commenting}
+          defaultOpen={f.path === targetFile ? true : undefined}
           emphasizeLarge={emphasizeLargeFiles}
           largeFileLabel={largeFileLabel}
           largeFileAriaLabel={largeFileAriaLabel?.(f, (f.additions ?? 0) + (f.deletions ?? 0))}
