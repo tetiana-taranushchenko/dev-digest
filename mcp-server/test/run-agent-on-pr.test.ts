@@ -3,7 +3,6 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DevDigestApiClient, type FetchLike } from '../src/api/client.js';
-import { RunCache } from '../src/runs/run-cache.js';
 import {
   failedRunResult,
   pickFindingFields,
@@ -16,7 +15,6 @@ import {
 
 const BASE_URL = 'http://localhost:3001';
 
-const REPO = { id: 'repo-1', full_name: 'acme/payments-api' };
 const PULL = { id: 'pr-1', number: 482 };
 const AGENT = {
   id: 'agent-1',
@@ -35,22 +33,20 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 interface FetchRoutes {
-  repos: () => unknown;
-  pulls: () => unknown;
+  pull: () => unknown;
   agents: () => unknown;
   review: () => unknown;
   runs: () => unknown;
   reviews: () => unknown;
 }
 
-/** A minimal router over the 6 endpoints this tool touches, dispatched by path suffix + method. */
+/** A minimal router over the 5 endpoints this tool touches, dispatched by path suffix + method. */
 function createFetch(routes: FetchRoutes): FetchLike {
   return vi.fn<FetchLike>(async (input, init) => {
     const url = String(input);
     const method = (init?.method ?? 'GET').toUpperCase();
 
-    if (url.endsWith('/repos')) return jsonResponse(200, routes.repos());
-    if (method === 'GET' && url.endsWith('/pulls')) return jsonResponse(200, routes.pulls());
+    if (method === 'GET' && /\/pulls\/[^/]+$/.test(url)) return jsonResponse(200, routes.pull());
     if (url.endsWith('/agents')) return jsonResponse(200, routes.agents());
     if (method === 'POST' && url.endsWith('/review')) return jsonResponse(200, routes.review());
     if (method === 'GET' && url.endsWith('/runs')) return jsonResponse(200, routes.runs());
@@ -63,7 +59,6 @@ function createFetch(routes: FetchRoutes): FetchLike {
 interface Harness {
   client: Client;
   server: McpServer;
-  runCache: RunCache;
 }
 
 async function setup(
@@ -71,11 +66,9 @@ async function setup(
   overrides: Partial<Omit<RunAgentOnPrDeps, 'client'>> = {},
 ): Promise<Harness> {
   const apiClient = new DevDigestApiClient({ baseUrl: BASE_URL, fetch: fetchImpl });
-  const runCache = overrides.runCache ?? new RunCache();
   const server = new McpServer({ name: 'devdigest-test', version: '0.0.0' });
   registerRunAgentOnPrTool(server, {
     client: apiClient,
-    runCache,
     reviewTimeoutMs: overrides.reviewTimeoutMs ?? 120_000,
     pollIntervalMs: overrides.pollIntervalMs ?? 2_000,
   });
@@ -84,7 +77,7 @@ async function setup(
   const client = new Client({ name: 'test-client', version: '0.0.0' });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
 
-  return { client, server, runCache };
+  return { client, server };
 }
 
 function parseResultText(result: { content: Array<{ type: string; text?: string }> }): unknown {
@@ -94,7 +87,7 @@ function parseResultText(result: { content: Array<{ type: string; text?: string 
 }
 
 function callArgs() {
-  return { name: 'devdigest_run_agent_on_pr', arguments: { repo: REPO.full_name, pr: PULL.number, agent: AGENT.id } };
+  return { name: 'devdigest_run_agent_on_pr', arguments: { pr_id: PULL.id, agent_id: AGENT.id } };
 }
 
 describe('devdigest_run_agent_on_pr', () => {
@@ -126,8 +119,7 @@ describe('devdigest_run_agent_on_pr', () => {
     };
 
     const fetchMock = createFetch({
-      repos: () => [REPO],
-      pulls: () => [PULL],
+      pull: () => PULL,
       agents: () => [AGENT],
       review: () => ({ pr_id: PULL.id, runs: [RUN_TARGET], reviews: [] }),
       runs: () => [
@@ -162,7 +154,7 @@ describe('devdigest_run_agent_on_pr', () => {
     expect(body.run_id).toBe('run-1');
     expect(body.agent_id).toBe('agent-1');
     expect(body.agent_name).toBe('Security Reviewer');
-    expect(body.repo).toBe(REPO.full_name);
+    expect(body.pr_id).toBe(PULL.id);
     expect(body.pr).toBe(PULL.number);
 
     const findings = body.findings as Array<Record<string, unknown>>;
@@ -172,31 +164,23 @@ describe('devdigest_run_agent_on_pr', () => {
     );
   });
 
-  it('timeout: still_running past reviewTimeoutMs, never cancels, cache written before polling began', async () => {
+  it('timeout: still_running past reviewTimeoutMs, never cancels, names pr_id to retry with', async () => {
     vi.useFakeTimers();
 
     const reviewTimeoutMs = 120_000;
     const pollIntervalMs = 2_000;
-    const runCache = new RunCache();
-    let cacheWasPopulatedBeforeFirstPoll: boolean | undefined;
 
     const fetchMock = createFetch({
-      repos: () => [REPO],
-      pulls: () => [PULL],
+      pull: () => PULL,
       agents: () => [AGENT],
       review: () => ({ pr_id: PULL.id, runs: [RUN_TARGET], reviews: [] }),
-      runs: () => {
-        if (cacheWasPopulatedBeforeFirstPoll === undefined) {
-          cacheWasPopulatedBeforeFirstPoll = runCache.lookup('run-1') !== undefined;
-        }
-        return [
-          { run_id: 'run-1', agent_id: 'agent-1', agent_name: 'Security Reviewer', status: 'running', error: null, ran_at: '2024-01-01T00:00:00Z' },
-        ];
-      },
+      runs: () => [
+        { run_id: 'run-1', agent_id: 'agent-1', agent_name: 'Security Reviewer', status: 'running', error: null, ran_at: '2024-01-01T00:00:00Z' },
+      ],
       reviews: () => [],
     });
 
-    harness = await setup(fetchMock, { runCache, reviewTimeoutMs, pollIntervalMs });
+    harness = await setup(fetchMock, { reviewTimeoutMs, pollIntervalMs });
 
     // Client-side request timeout must exceed the fake-time budget we're about to advance through.
     const resultPromise = harness.client.callTool(callArgs(), undefined, {
@@ -211,11 +195,10 @@ describe('devdigest_run_agent_on_pr', () => {
     expect(body.status).toBe('still_running');
     expect(body.run_id).toBe('run-1');
     expect(body.message).toContain('devdigest_get_findings');
-    expect(body.message).toContain('run-1');
+    expect(body.message).toContain(PULL.id);
 
     const calledUrls = fetchMock.mock.calls.map(([url]) => String(url));
     expect(calledUrls.some((url) => url.toLowerCase().includes('cancel'))).toBe(false);
-    expect(cacheWasPopulatedBeforeFirstPoll).toBe(true);
   });
 
   it('never polls GET /pulls/:id/runs more often than once per pollIntervalMs', async () => {
@@ -226,8 +209,7 @@ describe('devdigest_run_agent_on_pr', () => {
     let callCount = 0;
 
     const fetchMock = createFetch({
-      repos: () => [REPO],
-      pulls: () => [PULL],
+      pull: () => PULL,
       agents: () => [AGENT],
       review: () => ({ pr_id: PULL.id, runs: [RUN_TARGET], reviews: [] }),
       runs: () => {
@@ -256,8 +238,7 @@ describe('devdigest_run_agent_on_pr', () => {
 
   it('failed run: surfaces RunSummary.error plus a next step, isError: false', async () => {
     const fetchMock = createFetch({
-      repos: () => [REPO],
-      pulls: () => [PULL],
+      pull: () => PULL,
       agents: () => [AGENT],
       review: () => ({ pr_id: PULL.id, runs: [RUN_TARGET], reviews: [] }),
       runs: () => [
@@ -319,8 +300,7 @@ describe('devdigest_run_agent_on_pr', () => {
     };
 
     const fetchMock = createFetch({
-      repos: () => [REPO],
-      pulls: () => [PULL],
+      pull: () => PULL,
       agents: () => [AGENT],
       review: () => ({ pr_id: PULL.id, runs: [RUN_TARGET], reviews: [] }),
       runs: () => [
@@ -366,8 +346,7 @@ describe('devdigest_run_agent_on_pr', () => {
 
   it('is registered with annotations exactly { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }', async () => {
     const fetchMock = createFetch({
-      repos: () => [],
-      pulls: () => [],
+      pull: () => PULL,
       agents: () => [],
       review: () => ({ pr_id: PULL.id, runs: [], reviews: [] }),
       runs: () => [],
@@ -389,14 +368,15 @@ describe('devdigest_run_agent_on_pr', () => {
 });
 
 describe('exported helpers (reused by T9)', () => {
-  it('stillRunning() names devdigest_get_findings and the literal run_id', () => {
-    const result = stillRunning('run-xyz');
+  it('stillRunning() names devdigest_get_findings, the pr_id to retry with, and the literal run_id', () => {
+    const result = stillRunning('pr-xyz', 'run-xyz');
     expect(result).toEqual({
       status: 'still_running',
       run_id: 'run-xyz',
       message: expect.stringContaining('devdigest_get_findings'),
     });
-    expect(result.message).toContain('run-xyz');
+    expect(result.message).toContain('pr-xyz');
+    expect(result.run_id).toBe('run-xyz');
   });
 
   it('failedRunResult() surfaces the error and a next step for both failed and cancelled', () => {

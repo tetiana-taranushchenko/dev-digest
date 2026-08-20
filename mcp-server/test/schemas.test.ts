@@ -2,15 +2,15 @@ import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import {
   agentSchema,
-  checkFindingsIdentifier,
   getBlastRadiusInputSchema,
   getConventionsInputSchema,
   getFindingsInputSchema,
   listAgentsInputSchema,
+  prIdSchema,
   prSchema,
+  repoIdSchema,
   repoSchema,
   runAgentOnPrInputSchema,
-  runIdSchema,
 } from '../src/schemas.js';
 import {
   GET_BLAST_RADIUS_DESCRIPTION,
@@ -73,6 +73,28 @@ describe('field validators', () => {
     });
   });
 
+  describe('prIdSchema', () => {
+    it('accepts a non-empty string and rejects an empty one', () => {
+      expect(prIdSchema.safeParse('a23e635c-cb87-4230-8bb8-ff3fa63d1c30').success).toBe(true);
+      expect(prIdSchema.safeParse('').success).toBe(false);
+    });
+
+    it('rejects a string longer than 200 characters', () => {
+      expect(prIdSchema.safeParse('a'.repeat(201)).success).toBe(false);
+    });
+  });
+
+  describe('repoIdSchema', () => {
+    it('accepts a non-empty string and rejects an empty one', () => {
+      expect(repoIdSchema.safeParse('7da92249-2b69-44ce-b4a5-a1baa62853b1').success).toBe(true);
+      expect(repoIdSchema.safeParse('').success).toBe(false);
+    });
+
+    it('rejects a string longer than 200 characters', () => {
+      expect(repoIdSchema.safeParse('a'.repeat(201)).success).toBe(false);
+    });
+  });
+
   describe('agentSchema', () => {
     it('accepts a non-empty string and rejects an empty one', () => {
       expect(agentSchema.safeParse('code-quality-bot').success).toBe(true);
@@ -81,17 +103,6 @@ describe('field validators', () => {
 
     it('rejects a string longer than 200 characters', () => {
       expect(agentSchema.safeParse('a'.repeat(201)).success).toBe(false);
-    });
-  });
-
-  describe('runIdSchema', () => {
-    it('accepts a non-empty string and rejects an empty one', () => {
-      expect(runIdSchema.safeParse('run_abc123').success).toBe(true);
-      expect(runIdSchema.safeParse('').success).toBe(false);
-    });
-
-    it('rejects a string longer than 200 characters', () => {
-      expect(runIdSchema.safeParse('a'.repeat(201)).success).toBe(false);
     });
   });
 });
@@ -142,109 +153,37 @@ describe('devdigest_get_blast_radius keeps repo + pr both required', () => {
 });
 
 describe('shared field validators are reused across tools, not redefined per tool', () => {
-  it('run_agent_on_pr, get_conventions and get_blast_radius reuse the exact same repo/pr validator instances', () => {
-    expect(runAgentOnPrInputSchema.repo).toBe(repoSchema);
-    expect(getConventionsInputSchema.repo).toBe(repoSchema);
+  it('get_blast_radius reuses the exact same repo/pr validator instances', () => {
     expect(getBlastRadiusInputSchema.repo).toBe(repoSchema);
-    expect(runAgentOnPrInputSchema.pr).toBe(prSchema);
     expect(getBlastRadiusInputSchema.pr).toBe(prSchema);
   });
 
-  it("get_findings' optional repo/pr unwrap to the exact same shared validator instances", () => {
-    expect(unwrap(getFindingsInputSchema.repo)).toBe(repoSchema);
-    expect(unwrap(getFindingsInputSchema.pr)).toBe(prSchema);
+  it('get_conventions reuses the exact same repoId validator instance', () => {
+    expect(getConventionsInputSchema.repo_id).toBe(repoIdSchema);
   });
 
-  it('get_findings.repo/pr and the required repo/pr share identical parse behaviour on the same fixtures', () => {
-    const fixtures = ['acme/payments-api', 'owner/name/extra', '../../etc/passwd', ''];
-    for (const fixture of fixtures) {
-      expect(getFindingsInputSchema.repo.safeParse(fixture).success).toBe(
-        repoSchema.safeParse(fixture).success,
-      );
-    }
+  it('run_agent_on_pr reuses the shared prId/agent validator instances', () => {
+    expect(runAgentOnPrInputSchema.pr_id).toBe(prIdSchema);
+    expect(runAgentOnPrInputSchema.agent_id).toBe(agentSchema);
+  });
+
+  it('get_findings reuses the exact same prId validator instance', () => {
+    expect(getFindingsInputSchema.pr_id).toBe(prIdSchema);
   });
 });
 
 describe('devdigest_get_findings input schema', () => {
-  it('run_id, repo and pr are all optional at the schema level (REQ-5/REQ-8)', () => {
-    expect(getFindingsInputSchema.run_id.safeParse(undefined).success).toBe(true);
-    expect(getFindingsInputSchema.repo.safeParse(undefined).success).toBe(true);
-    expect(getFindingsInputSchema.pr.safeParse(undefined).success).toBe(true);
+  it('pr_id is required', () => {
+    expect(getFindingsInputSchema.pr_id.safeParse(undefined).success).toBe(false);
+    expect(getFindingsInputSchema.pr_id.safeParse('a23e635c-cb87-4230-8bb8-ff3fa63d1c30').success).toBe(
+      true,
+    );
   });
 
-  it('response_format defaults to concise and rejects an unknown value', () => {
-    expect(getFindingsInputSchema.response_format.parse(undefined)).toBe('concise');
-    expect(getFindingsInputSchema.response_format.safeParse('concise').success).toBe(true);
-    expect(getFindingsInputSchema.response_format.safeParse('detailed').success).toBe(true);
-    expect(getFindingsInputSchema.response_format.safeParse('verbose').success).toBe(false);
-  });
-
-  it('offset defaults to 0 and rejects a negative value', () => {
-    expect(getFindingsInputSchema.offset.parse(undefined)).toBe(0);
-    expect(getFindingsInputSchema.offset.safeParse(-1).success).toBe(false);
-  });
-
-  it('limit defaults to 25 and rejects 0 or values above 100', () => {
-    expect(getFindingsInputSchema.limit.parse(undefined)).toBe(25);
-    expect(getFindingsInputSchema.limit.safeParse(0).success).toBe(false);
-    expect(getFindingsInputSchema.limit.safeParse(101).success).toBe(false);
-    expect(getFindingsInputSchema.limit.safeParse(100).success).toBe(true);
-    expect(getFindingsInputSchema.limit.safeParse(1).success).toBe(true);
-  });
-});
-
-describe('checkFindingsIdentifier (cross-field guard, REQ-8)', () => {
-  it('accepts run_id alone', () => {
-    const result = checkFindingsIdentifier({ run_id: 'run_abc123' });
-    expect(result).toEqual({ ok: true, mode: 'run_id', run_id: 'run_abc123' });
-  });
-
-  it('accepts repo + pr together', () => {
-    const result = checkFindingsIdentifier({ repo: 'acme/payments-api', pr: 482 });
-    expect(result).toEqual({ ok: true, mode: 'repo_pr', repo: 'acme/payments-api', pr: 482 });
-  });
-
-  it('rejects both run_id and repo+pr given, naming both call shapes and that they are mutually exclusive', () => {
-    const result = checkFindingsIdentifier({
-      run_id: 'run_abc123',
-      repo: 'acme/payments-api',
-      pr: 482,
-    });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.message).toMatch(/mutually exclusive/i);
-      expect(result.message).toMatch(/run_id/);
-      expect(result.message).toMatch(/repo/);
-      expect(result.message).toMatch(/\bpr\b/);
-    }
-  });
-
-  it('rejects neither run_id nor repo+pr given, naming both call shapes', () => {
-    const result = checkFindingsIdentifier({});
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.message).toMatch(/run_id/);
-      expect(result.message).toMatch(/repo/);
-      expect(result.message).toMatch(/\bpr\b/);
-    }
-  });
-
-  it('rejects repo without pr, naming the pairing requirement and the run_id alternative', () => {
-    const result = checkFindingsIdentifier({ repo: 'acme/payments-api' });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.message).toMatch(/together/i);
-      expect(result.message).toMatch(/run_id/);
-    }
-  });
-
-  it('rejects pr without repo, naming the pairing requirement and the run_id alternative', () => {
-    const result = checkFindingsIdentifier({ pr: 482 });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.message).toMatch(/together/i);
-      expect(result.message).toMatch(/run_id/);
-    }
+  it('all_runs defaults to false and rejects a non-boolean', () => {
+    expect(getFindingsInputSchema.all_runs.parse(undefined)).toBe(false);
+    expect(getFindingsInputSchema.all_runs.safeParse(true).success).toBe(true);
+    expect(getFindingsInputSchema.all_runs.safeParse('true').success).toBe(false);
   });
 });
 
@@ -269,46 +208,45 @@ describe('shared-context.ts (REQ-11)', () => {
     );
   });
 
-  it('each of the 5 tool descriptions is copied verbatim from the plan', () => {
+  it('each of the 5 tool descriptions is exactly one sentence', () => {
     expect(LIST_AGENTS_DESCRIPTION).toBe(
       'List the reviewer agents configured in this DevDigest workspace (id, name, ' +
-        'model, enabled). Call this first to get a valid agent id for ' +
-        'devdigest_run_agent_on_pr — do not guess or invent agent ids. Takes no ' +
-        'arguments.',
+        'model, enabled) — call this first to get a valid agent id for ' +
+        'devdigest_run_agent_on_pr (do not guess or invent one); takes no arguments.',
     );
     expect(RUN_AGENT_ON_PR_DESCRIPTION).toBe(
-      'Run one reviewer agent on a pull request and return the result — this ' +
-        'single call triggers the review, waits for it to finish (up to ~2 min), ' +
-        'and returns the verdict and findings; you do not need to poll. Args: repo ' +
-        '(owner/name, e.g. "acme/payments-api"), pr (the GitHub PR number, e.g. ' +
-        '482, not an internal id), agent (an id from devdigest_list_agents — do not ' +
-        'guess it). If the review is still running after ~2 min, the result is ' +
-        "{status:'still_running', run_id}; call devdigest_get_findings with that " +
-        'run_id (or with repo+pr) later.',
+      'Run one reviewer agent on a pull request and return the result in one call ' +
+        '(triggers the review, waits up to ~5 min, and returns the verdict and ' +
+        "findings — or, past ~5 min, {status:'still_running', run_id}, in which case " +
+        'call devdigest_get_findings with the same pr_id later); Args: pr_id (the ' +
+        "PR's internal DevDigest id, NOT the GitHub PR number, e.g. " +
+        '"a23e635c-cb87-4230-8bb8-ff3fa63d1c30"), agent_id (an id from ' +
+        'devdigest_list_agents — do not guess it).',
     );
     expect(GET_FINDINGS_DESCRIPTION).toBe(
-      'Get the verdict and findings of an already-started review run. Identify it ' +
-        'either by run_id (returned by devdigest_run_agent_on_pr — prefer this when ' +
-        'you have it) or by repo+pr (looks up the most recent run for that PR). ' +
-        'Defaults to a concise summary (severity, category, title, file, start_line, ' +
-        "end_line, rationale); pass response_format:'detailed' for the full set " +
-        '(adds suggestion, confidence, id, review_id — needed to call the ' +
-        'accept/dismiss endpoints on one finding). Use offset/limit to page through ' +
-        'large result sets (default limit 25). If run_id is unknown, or repo+pr ' +
-        'never had a review run, the result names the fix.',
+      'Get the latest review verdict and findings for a pull request, grouped by ' +
+        'agent — Args: pr_id (the same internal DevDigest id devdigest_run_agent_on_pr ' +
+        'takes, e.g. "a23e635c-cb87-4230-8bb8-ff3fa63d1c30"), all_runs (optional ' +
+        "boolean, default false, pass true for every run per agent instead of just " +
+        "each agent's latest); each entry in the result's reviews array is one " +
+        "agent's run ('running' has no findings yet, 'failed'/'cancelled' carries an " +
+        "error, 'done' carries verdict/summary/score/findings with id/review_id " +
+        'always included for the accept/dismiss endpoints), and if pr_id has no ' +
+        'review runs at all the result names devdigest_run_agent_on_pr as the fix.',
     );
     expect(GET_CONVENTIONS_DESCRIPTION).toBe(
       "Get this repository's extracted coding conventions (category, rule, " +
-        'evidence_ref, confidence, accepted). Args: repo (owner/name). Use this to ' +
-        "check or justify a finding against the repo's house rules; if none have " +
-        'been extracted yet, the result points at the Conventions page.',
+        "evidence_ref, confidence, accepted) to check or justify a finding against " +
+        "the repo's house rules — Args: repo_id (the repo's internal DevDigest id, " +
+        'e.g. "7da92249-2b69-44ce-b4a5-a1baa62853b1" — not its "owner/name"); if ' +
+        'none have been extracted yet, the result points at the Conventions page.',
     );
     expect(GET_BLAST_RADIUS_DESCRIPTION).toBe(
-      '⚠️ STUB — not yet implemented. Will eventually map which files/symbols a ' +
-        "PR's changes affect elsewhere in the repo (reads repo-intel). Args: repo, " +
-        'pr — same required shape as devdigest_run_agent_on_pr, so the contract ' +
-        "won't change later. Always returns {status:'not_implemented', ...} with no " +
-        'real data — do not rely on its output.',
+      '⚠️ STUB — not yet implemented, will eventually map which files/symbols a ' +
+        "PR's changes affect elsewhere in the repo (reads repo-intel) — Args: repo " +
+        "(owner/name), pr (the GitHub PR number), both required so the contract " +
+        "won't change later; always returns {status:'not_implemented', ...} with no " +
+        'real data, so do not rely on its output.',
     );
   });
 
@@ -351,11 +289,19 @@ describe('shared-context.ts (REQ-11)', () => {
     }
   });
 
-  it('every timeout mention is written "~2 min" and the literal string "90" never appears (REQ-7)', () => {
+  it('every timeout mention is written "~5 min" and the literal string "90" never appears (REQ-7)', () => {
     expect(SERVER_INSTRUCTIONS).not.toContain('90');
     for (const description of Object.values(toolDescriptions)) {
       expect(description).not.toContain('90');
     }
-    expect(RUN_AGENT_ON_PR_DESCRIPTION).toContain('~2 min');
+    expect(RUN_AGENT_ON_PR_DESCRIPTION).toContain('~5 min');
+  });
+
+  it('each of the 5 tool descriptions is exactly one sentence (a single terminal period, "e.g."/"..." aside)', () => {
+    for (const [toolName, description] of Object.entries(toolDescriptions)) {
+      const periodCount = description.replace(/e\.g\./g, '').replace(/\.\.\./g, '').split('.').length - 1;
+      expect(periodCount, `${toolName} should have exactly one sentence-ending period`).toBe(1);
+      expect(description.trim().endsWith('.'), `${toolName} should end with a period`).toBe(true);
+    }
   });
 });

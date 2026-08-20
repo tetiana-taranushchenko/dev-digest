@@ -54,6 +54,18 @@ export const PrMetaResponse = z
   })
   .passthrough();
 
+/**
+ * `GET /pulls/:id` response — only `id` and `number` are consumed by this
+ * package (`resolvePullById`, T4). The full `PrDetail` payload carries diff
+ * files/commits/body too, but nothing here reads them.
+ */
+export const PrDetailResponse = z
+  .object({
+    id: z.string(),
+    number: z.number().int(),
+  })
+  .passthrough();
+
 /** `GET /agents` item, built by `toAgentDto` (`agents/helpers.ts:12-27`). */
 export const AgentResponse = z
   .object({

@@ -19,7 +19,7 @@ export interface McpServerEnv {
 export interface McpServerConfig {
   /** Base URL of the local DevDigest API. Trailing slash(es) stripped. */
   apiBaseUrl: string;
-  /** Max time (ms) devdigest_run_agent_on_pr blocks before returning "still_running" (REQ-7, default "~2 min"). */
+  /** Max time (ms) devdigest_run_agent_on_pr blocks before returning "still_running" (REQ-7, default "~5 min"). */
   reviewTimeoutMs: number;
   /** Interval (ms) between polls of GET /pulls/:id/runs while waiting for a run to finish. */
   pollIntervalMs: number;
@@ -28,7 +28,7 @@ export interface McpServerConfig {
 }
 
 const DEFAULT_API_BASE_URL = 'http://localhost:3001';
-const DEFAULT_REVIEW_TIMEOUT_MS = 120_000;
+const DEFAULT_REVIEW_TIMEOUT_MS = 300_000;
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 const DEFAULT_RESOLVE_TIMEOUT_MS = 20_000;
 

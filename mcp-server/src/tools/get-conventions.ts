@@ -1,5 +1,6 @@
-// `devdigest_get_conventions` — resolves `repo` via T4's shared resolver
-// (`resolveRepo`, `api/resolve.ts`) and wraps `GET /repos/:id/conventions`,
+// `devdigest_get_conventions` — resolves `repo_id` (the repo's internal id)
+// via T4's shared resolver (`resolveRepoById`, `api/resolve.ts`) and wraps
+// `GET /repos/:id/conventions`,
 // trimmed to exactly the fields a caller needs to check or justify a finding
 // against the repo's house rules: `{ category, rule, evidence_ref,
 // confidence, accepted }`.
@@ -13,14 +14,14 @@
 // `evidence_line`, `evidence_snippet` are also dropped as internal
 // bookkeeping this tool's caller has no use for.
 //
-// `resolveRepo` is imported and called directly — this tool does not
+// `resolveRepoById` is imported and called directly — this tool does not
 // reimplement the `GET /repos` lookup (see `api/resolve.ts`'s module doc,
 // which lists this tool as one of its four consumers).
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { DevDigestApiClient } from '../api/client.js';
 import { ApiError } from '../api/client.js';
-import { resolveRepo, ResolveError } from '../api/resolve.js';
+import { resolveRepoById, ResolveError } from '../api/resolve.js';
 import { getConventionsInputSchema } from '../schemas.js';
 import { GET_CONVENTIONS_DESCRIPTION } from './shared-context.js';
 
@@ -70,10 +71,10 @@ export function registerGetConventionsTool(server: McpServer, deps: GetConventio
       inputSchema: getConventionsInputSchema,
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
-    async ({ repo }): Promise<CallToolResult> => {
-      let repoId: string;
+    async ({ repo_id }): Promise<CallToolResult> => {
+      let repo;
       try {
-        repoId = (await resolveRepo(deps.client, repo)).id;
+        repo = await resolveRepoById(deps.client, repo_id);
       } catch (err) {
         if (err instanceof ResolveError) {
           return textResult({ status: 'error', message: err.message }, true);
@@ -83,13 +84,13 @@ export function registerGetConventionsTool(server: McpServer, deps: GetConventio
 
       let conventions;
       try {
-        conventions = await deps.client.listConventions(repoId);
+        conventions = await deps.client.listConventions(repo.id);
       } catch (err) {
         const message = err instanceof ApiError ? err.message : String(err);
         return textResult(
           {
             status: 'error',
-            message: `Failed to list conventions for "${repo}": ${message}. Confirm the DevDigest studio is running and reachable, then retry devdigest_get_conventions.`,
+            message: `Failed to list conventions for "${repo.full_name}": ${message}. Confirm the DevDigest studio is running and reachable, then retry devdigest_get_conventions.`,
           },
           true,
         );
@@ -100,7 +101,7 @@ export function registerGetConventionsTool(server: McpServer, deps: GetConventio
         return textResult({
           status: 'empty',
           message:
-            `No conventions have been extracted yet for "${repo}". Run the Conventions ` +
+            `No conventions have been extracted yet for "${repo.full_name}". Run the Conventions ` +
             'extractor for this repo in the DevDigest studio, then retry devdigest_get_conventions.',
           conventions: [],
         });

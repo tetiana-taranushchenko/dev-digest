@@ -18,7 +18,6 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DevDigestApiClient } from '../src/api/client.js';
-import { RunCache } from '../src/runs/run-cache.js';
 import { createMcpServer } from '../src/server.js';
 import { DETAILED_FINDING_FIELDS } from '../src/tools/run-agent-on-pr.js';
 
@@ -68,14 +67,13 @@ const REVIEW = {
 };
 
 // A second PR under the same repo that the stub reports as having zero runs
-// at all (T13 item 4) — exercises devdigest_get_findings' repo+pr "run a
-// review first" actionable message.
+// at all — exercises devdigest_get_findings' "run a review first" actionable
+// message.
 const PULL_NO_RUNS = { id: 'pr-no-runs', number: 999 };
 
 // A third PR under the same repo whose single (already-`done`) run has a
-// 5-finding review, so offset/limit slicing (T13 item 3) has something
-// meaningful to slice. It is looked up directly via repo+pr — no run_id is
-// ever cached for it.
+// 5-finding review — proves devdigest_get_findings returns every finding
+// (there is no offset/limit in this tool's design).
 const PULL_PAGINATED = { id: 'pr-paginated', number: 555 };
 const RUN_PAGINATED = { run_id: 'run-paginated', agent_id: AGENT.id, agent_name: AGENT.name };
 const PAGINATED_FINDINGS = Array.from({ length: 5 }, (_, i) => ({
@@ -108,16 +106,17 @@ const REVIEW_PAGINATED = {
 /**
  * A minimal, real `node:http` server implementing exactly the endpoints
  * `mcp-server`'s API client calls (`GET /repos`, `GET /repos/:id/pulls`,
- * `GET /agents`, `POST /pulls/:id/review`, `GET /pulls/:id/runs`,
- * `GET /pulls/:id/reviews`, `GET /repos/:id/conventions`, `GET /health`).
+ * `GET /pulls/:id`, `GET /agents`, `POST /pulls/:id/review`,
+ * `GET /pulls/:id/runs`, `GET /pulls/:id/reviews`,
+ * `GET /repos/:id/conventions`, `GET /health`).
  * `GET /pulls/:id/runs` reports `status: 'running'` for its first two calls,
  * then `'done'` afterwards, so the tool's real poll loop is genuinely
  * exercised over real (not fake) time, not just a single status check.
  *
- * Two extra PRs (T13) round out `devdigest_get_findings`' repo+pr path:
- * `PULL_NO_RUNS` always reports zero runs (the "run a review first" path),
- * and `PULL_PAGINATED` has a single already-`done` run whose review carries
- * 5 findings (the offset/limit slicing path).
+ * Two extra PRs round out `devdigest_get_findings`: `PULL_NO_RUNS` always
+ * reports zero runs (the "run a review first" path), and `PULL_PAGINATED`
+ * has a single already-`done` run whose review carries 5 findings (proving
+ * findings aren't truncated even though there is no offset/limit).
  */
 function createApiStub(): { server: Server; baseUrl: string; getRequestCount: () => number } {
   let requestCount = 0;
@@ -155,6 +154,10 @@ function createApiStub(): { server: Server; baseUrl: string; getRequestCount: ()
       sendJson(res, 200, [AGENT]);
       return;
     }
+    if (method === 'GET' && path === `/pulls/${PULL.id}`) {
+      sendJson(res, 200, { id: PULL.id, number: PULL.number });
+      return;
+    }
     if (method === 'POST' && path === `/pulls/${PULL.id}/review`) {
       sendJson(res, 200, { pr_id: PULL.id, runs: [RUN_TARGET], reviews: [] });
       return;
@@ -178,8 +181,16 @@ function createApiStub(): { server: Server; baseUrl: string; getRequestCount: ()
       sendJson(res, 200, [REVIEW]);
       return;
     }
+    if (method === 'GET' && path === `/pulls/${PULL_NO_RUNS.id}`) {
+      sendJson(res, 200, { id: PULL_NO_RUNS.id, number: PULL_NO_RUNS.number });
+      return;
+    }
     if (method === 'GET' && path === `/pulls/${PULL_NO_RUNS.id}/runs`) {
       sendJson(res, 200, []);
+      return;
+    }
+    if (method === 'GET' && path === `/pulls/${PULL_PAGINATED.id}`) {
+      sendJson(res, 200, { id: PULL_PAGINATED.id, number: PULL_PAGINATED.number });
       return;
     }
     if (method === 'GET' && path === `/pulls/${PULL_PAGINATED.id}/runs`) {
@@ -242,9 +253,8 @@ describe('mcp-server integration (real HTTP stub + real MCP protocol)', () => {
     const apiClient = new DevDigestApiClient({ baseUrl: stub.baseUrl, fetch });
     server = createMcpServer({
       client: apiClient,
-      runCache: new RunCache(),
       // Real (not fake) time: short poll interval + a short-ish timeout so
-      // this test doesn't take anywhere near the ~2 min default budget,
+      // this test doesn't take anywhere near the ~5 min default budget,
       // while comfortably outlasting the stub's 2-poll "running" window.
       pollIntervalMs: 80,
       reviewTimeoutMs: 5_000,
@@ -286,7 +296,7 @@ describe('mcp-server integration (real HTTP stub + real MCP protocol)', () => {
   it('devdigest_run_agent_on_pr walks resolve -> POST -> poll (running x2 -> done) -> reviews against the real stub', async () => {
     const result = await client.callTool({
       name: 'devdigest_run_agent_on_pr',
-      arguments: { repo: REPO.full_name, pr: PULL.number, agent: AGENT.id },
+      arguments: { pr_id: PULL.id, agent_id: AGENT.id },
     });
 
     expect(result.isError).toBeFalsy();
@@ -294,14 +304,14 @@ describe('mcp-server integration (real HTTP stub + real MCP protocol)', () => {
       status: string;
       verdict: string;
       run_id: string;
-      repo: string;
+      pr_id: string;
       pr: number;
       findings: Array<Record<string, unknown>>;
     };
 
     expect(body.status).toBe('completed');
     expect(body.verdict).toBe(REVIEW.verdict);
-    expect(body.repo).toBe(REPO.full_name);
+    expect(body.pr_id).toBe(PULL.id);
     expect(body.pr).toBe(PULL.number);
     expect(body.findings).toHaveLength(1);
     expect(body.findings[0]).toMatchObject({
@@ -318,109 +328,69 @@ describe('mcp-server integration (real HTTP stub + real MCP protocol)', () => {
     expect(capturedRunId).toBe(RUN_TARGET.run_id);
   });
 
-  it('devdigest_get_findings with the captured run_id returns the same verdict and findings', async () => {
+  it('devdigest_get_findings with pr_id returns the run just started, grouped by agent, with detailed fields', async () => {
     expect(capturedRunId).toBeDefined();
 
     const result = await client.callTool({
       name: 'devdigest_get_findings',
-      arguments: { run_id: capturedRunId },
+      arguments: { pr_id: PULL.id },
     });
 
     expect(result.isError).toBeFalsy();
     const body = parseResultText(result as never) as {
       status: string;
-      verdict: string;
-      run_id: string;
-      findings: Array<Record<string, unknown>>;
-    };
-
-    expect(body.status).toBe('completed');
-    expect(body.verdict).toBe(REVIEW.verdict);
-    expect(body.run_id).toBe(capturedRunId);
-    expect(body.findings).toHaveLength(1);
-    expect(body.findings[0]).toMatchObject({
-      severity: FINDING.severity,
-      category: FINDING.category,
-      title: FINDING.title,
-    });
-  });
-
-  it('devdigest_get_findings with repo+pr (no run_id) returns the same review via the most-recent-run path', async () => {
-    const result = await client.callTool({
-      name: 'devdigest_get_findings',
-      arguments: { repo: REPO.full_name, pr: PULL.number },
-    });
-
-    expect(result.isError).toBeFalsy();
-    const body = parseResultText(result as never) as {
-      status: string;
-      verdict: string;
-      run_id: string;
-      repo: string;
+      pr_id: string;
       pr: number;
-      findings: Array<Record<string, unknown>>;
+      all_runs: boolean;
+      reviews: Array<Record<string, unknown>>;
     };
 
     expect(body.status).toBe('completed');
-    expect(body.verdict).toBe(REVIEW.verdict);
-    expect(body.run_id).toBe(RUN_TARGET.run_id);
-    expect(body.repo).toBe(REPO.full_name);
+    expect(body.pr_id).toBe(PULL.id);
     expect(body.pr).toBe(PULL.number);
-    expect(body.findings).toHaveLength(1);
-    expect(body.findings[0]).toMatchObject({
+    expect(body.all_runs).toBe(false);
+    expect(body.reviews).toHaveLength(1);
+
+    const entry = body.reviews[0]!;
+    expect(entry.run_id).toBe(capturedRunId);
+    expect(entry.verdict).toBe(REVIEW.verdict);
+    const findings = entry.findings as Array<Record<string, unknown>>;
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
       severity: FINDING.severity,
       category: FINDING.category,
       title: FINDING.title,
     });
+    // Every finding carries the full detailed field set (id/review_id
+    // included) — there is no response_format toggle in this tool.
+    expect(Object.keys(findings[0]!).sort()).toEqual([...DETAILED_FINDING_FIELDS].sort());
   });
 
-  it("devdigest_get_findings with response_format: 'detailed' returns findings with exactly the 11 detailed keys", async () => {
+  it('devdigest_get_findings returns every finding for a run with no truncation (no offset/limit in this design)', async () => {
     const result = await client.callTool({
       name: 'devdigest_get_findings',
-      arguments: { run_id: capturedRunId, response_format: 'detailed' },
+      arguments: { pr_id: PULL_PAGINATED.id },
     });
 
     expect(result.isError).toBeFalsy();
-    const body = parseResultText(result as never) as {
-      response_format: string;
-      findings: Array<Record<string, unknown>>;
-    };
+    const body = parseResultText(result as never) as { reviews: Array<Record<string, unknown>> };
 
-    expect(body.response_format).toBe('detailed');
-    expect(body.findings).toHaveLength(1);
-    expect(Object.keys(body.findings[0]!).sort()).toEqual([...DETAILED_FINDING_FIELDS].sort());
-  });
-
-  it('devdigest_get_findings with offset/limit returns the correctly sliced page', async () => {
-    const result = await client.callTool({
-      name: 'devdigest_get_findings',
-      arguments: { repo: REPO.full_name, pr: PULL_PAGINATED.number, offset: 2, limit: 2 },
-    });
-
-    expect(result.isError).toBeFalsy();
-    const body = parseResultText(result as never) as {
-      total: number;
-      returned: number;
-      offset: number;
-      limit: number;
-      has_more: boolean;
-      findings: Array<Record<string, unknown>>;
-      next_step?: string;
-    };
-
-    expect(body.total).toBe(5);
-    expect(body.returned).toBe(2);
-    expect(body.offset).toBe(2);
-    expect(body.limit).toBe(2);
-    expect(body.has_more).toBe(true);
-    expect(body.findings.map((f) => f.title)).toEqual(['Finding 3', 'Finding 4']);
-    expect(body.next_step).toBeDefined();
+    expect(body.reviews).toHaveLength(1);
+    const findings = body.reviews[0]!.findings as Array<Record<string, unknown>>;
+    expect(findings).toHaveLength(5);
+    expect(findings.map((f) => f.title)).toEqual([
+      'Finding 1',
+      'Finding 2',
+      'Finding 3',
+      'Finding 4',
+      'Finding 5',
+    ]);
   });
 
   it('devdigest_get_findings for a PR with no runs at all returns the "run a review first" actionable message', async () => {
     const result = await client.callTool({
       name: 'devdigest_get_findings',
-      arguments: { repo: REPO.full_name, pr: PULL_NO_RUNS.number },
+      arguments: { pr_id: PULL_NO_RUNS.id },
     });
 
     expect(result.isError).toBe(true);
@@ -430,21 +400,17 @@ describe('mcp-server integration (real HTTP stub + real MCP protocol)', () => {
     expect(body.message).toContain('devdigest_run_agent_on_pr');
   });
 
-  it('devdigest_get_findings with an unknown run_id returns the actionable cache-miss message naming the repo+pr alternative', async () => {
+  it('devdigest_get_findings with an unknown pr_id returns an actionable error naming what pr_id is', async () => {
     const result = await client.callTool({
       name: 'devdigest_get_findings',
-      arguments: { run_id: 'run-does-not-exist' },
+      arguments: { pr_id: 'pr-does-not-exist' },
     });
 
     expect(result.isError).toBe(true);
     const body = parseResultText(result as never) as { status: string; message: string };
     expect(body.status).toBe('error');
-    expect(body.message).toContain('run-does-not-exist');
-    expect(body.message).toContain('devdigest_get_findings');
-    // REQ-8: the message must name the repo + pr alternative specifically,
-    // not just gesture at "try again".
-    expect(body.message).toContain('repo and pr');
-    expect(body.message).toContain('devdigest_run_agent_on_pr');
+    expect(body.message).toContain('pr-does-not-exist');
+    expect(body.message).toMatch(/internal DevDigest id/);
   });
 
   it('devdigest_get_blast_radius returns not_implemented with isError:false and makes zero HTTP requests', async () => {

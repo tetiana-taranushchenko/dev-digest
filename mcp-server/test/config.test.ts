@@ -2,16 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/config.js';
 
 describe('loadConfig', () => {
-  it('applies defaults on an empty env, with reviewTimeoutMs exactly 120000 (REQ-7)', () => {
+  it('applies defaults on an empty env, with reviewTimeoutMs exactly 300000 (REQ-7)', () => {
     const config = loadConfig({});
 
     expect(config).toEqual({
       apiBaseUrl: 'http://localhost:3001',
-      reviewTimeoutMs: 120_000,
+      reviewTimeoutMs: 300_000,
       pollIntervalMs: 2_000,
       resolveTimeoutMs: 20_000,
     });
-    expect(config.reviewTimeoutMs).toBe(120_000);
+    expect(config.reviewTimeoutMs).toBe(300_000);
   });
 
   it('lets API_BASE_URL override the default and normalises a trailing slash away', () => {

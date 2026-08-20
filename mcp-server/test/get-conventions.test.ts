@@ -10,7 +10,7 @@ vi.mock('../src/api/resolve.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/api/resolve.js')>();
   return {
     ...actual,
-    resolveRepo: vi.fn(actual.resolveRepo),
+    resolveRepoById: vi.fn(actual.resolveRepoById),
   };
 });
 
@@ -87,7 +87,7 @@ describe('devdigest_get_conventions', () => {
 
     const result = await harness.client.callTool({
       name: 'devdigest_get_conventions',
-      arguments: { repo: 'acme/payments-api' },
+      arguments: { repo_id: 'r1' },
     });
 
     expect(result.isError).toBeFalsy();
@@ -107,9 +107,9 @@ describe('devdigest_get_conventions', () => {
     });
 
     // The GET /repos lookup is not duplicated per tool — this is T4's shared
-    // resolveRepo, actually invoked, not a reimplementation.
-    expect(resolveModule.resolveRepo).toHaveBeenCalledTimes(1);
-    expect(resolveModule.resolveRepo).toHaveBeenCalledWith(expect.anything(), 'acme/payments-api');
+    // resolveRepoById, actually invoked, not a reimplementation.
+    expect(resolveModule.resolveRepoById).toHaveBeenCalledTimes(1);
+    expect(resolveModule.resolveRepoById).toHaveBeenCalledWith(expect.anything(), 'r1');
   });
 
   it('an empty convention list yields an actionable message pointing at the extractor, not a bare []', async () => {
@@ -121,7 +121,7 @@ describe('devdigest_get_conventions', () => {
 
     const result = await harness.client.callTool({
       name: 'devdigest_get_conventions',
-      arguments: { repo: 'acme/payments-api' },
+      arguments: { repo_id: 'r1' },
     });
 
     expect(result.isError).toBeFalsy();
@@ -133,10 +133,12 @@ describe('devdigest_get_conventions', () => {
     expect(body.conventions).toEqual([]);
     expect(body.status).toBe('empty');
     expect(body.message).toMatch(/conventions/i);
+    // The empty-list message names the repo by its full_name, resolved from repo_id, for readability.
+    expect(body.message).toMatch(/acme\/payments-api/);
     expect(body.message).not.toBe('[]');
   });
 
-  it('an unresolvable repo surfaces the resolver actionable error, not a crash', async () => {
+  it('an unresolvable repo_id surfaces the resolver actionable error, not a crash', async () => {
     const fetchMock = makeFetch({
       '/repos': [{ id: 'r1', full_name: 'acme/other' }],
     });
@@ -144,12 +146,12 @@ describe('devdigest_get_conventions', () => {
 
     const result = await harness.client.callTool({
       name: 'devdigest_get_conventions',
-      arguments: { repo: 'acme/missing' },
+      arguments: { repo_id: 'r2-does-not-exist' },
     });
 
     expect(result.isError).toBe(true);
     const body = parseResultText(result as never) as { message: string };
-    expect(body.message).toMatch(/acme\/other/);
+    expect(body.message).toMatch(/r1 \(acme\/other\)/);
   });
 
   it('is registered with annotations exactly { readOnlyHint: true, destructiveHint: false }', async () => {

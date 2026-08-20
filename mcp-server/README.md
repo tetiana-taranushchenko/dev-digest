@@ -30,9 +30,9 @@ no HTTP call at all (`src/tools/get-blast-radius.ts:44-57`).
 | Tool | Params | `annotations` | Notes |
 |---|---|---|---|
 | `devdigest_list_agents` | none | `readOnlyHint: true, destructiveHint: false` | Returns `{ id, name, description, enabled, model }` per agent (`src/tools/list-agents.ts:24-30,63`) |
-| `devdigest_run_agent_on_pr` | `repo` (owner/name), `pr` (GitHub PR number), `agent` (id or name) | `readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true` | The only mutating tool — one call does resolve → trigger → poll → fetch (`src/tools/run-agent-on-pr.ts:256-261`) |
-| `devdigest_get_findings` | `run_id` **or** `repo`+`pr` (mutually exclusive), `response_format?`, `offset?`, `limit?` | `readOnlyHint: true, destructiveHint: false` | Gets the verdict + findings of an already-started run (`src/tools/get-findings.ts:101`) |
-| `devdigest_get_conventions` | `repo` | `readOnlyHint: true, destructiveHint: false` | Returns `{ category, rule, evidence_ref, confidence, accepted }` per convention (`src/tools/get-conventions.ts:32-38,71`) |
+| `devdigest_run_agent_on_pr` | `pr_id` (the PR's **internal** DevDigest id, not the GitHub PR number), `agent_id` (id or name) | `readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true` | The only mutating tool — one call does resolve → trigger → poll → fetch (`src/tools/run-agent-on-pr.ts:256-261`). Find `pr_id` in the DevDigest app (e.g. the `id` field in `GET /repos/:id/pulls`'s response, visible in the browser's network tab) or `GET /pulls/:id` |
+| `devdigest_get_findings` | `pr_id` (same internal id as `devdigest_run_agent_on_pr`), `all_runs?` (default `false`) | `readOnlyHint: true, destructiveHint: false` | Gets the latest verdict + findings per agent for a PR, grouped by agent; `all_runs: true` returns every run instead of just each agent's latest (`src/tools/get-findings.ts:81`) |
+| `devdigest_get_conventions` | `repo_id` (the repo's **internal** DevDigest id, not "owner/name") | `readOnlyHint: true, destructiveHint: false` | Returns `{ category, rule, evidence_ref, confidence, accepted }` per convention (`src/tools/get-conventions.ts:32-38,71`) |
 | `devdigest_get_blast_radius` | `repo`, `pr` (both required) | `readOnlyHint: true, destructiveHint: false` | **Stub** — always `{status:'not_implemented',...}`, makes no HTTP call (`src/tools/get-blast-radius.ts:1-8,42-57`) |
 
 Annotation values above are read verbatim from each tool's `registerTool(...)`
@@ -46,7 +46,7 @@ the default applied by `loadConfig` (`src/config.ts:30-33`):
 | Var | Default | Notes |
 |---|---|---|
 | `API_BASE_URL` | `http://localhost:3001` | Base URL of the local DevDigest API; a trailing slash is stripped (`src/config.ts:80-82`) |
-| `REVIEW_TIMEOUT_MS` | `120000` | Max time `devdigest_run_agent_on_pr` polls before returning `still_running` — described to the model as **"~2 min"**, never "~90s" (`src/config.ts:31`, `src/tools/shared-context.ts:42,46`) |
+| `REVIEW_TIMEOUT_MS` | `300000` | Max time `devdigest_run_agent_on_pr` polls before returning `still_running` — described to the model as **"~5 min"**, never "~90s" (`src/config.ts:31`, `src/tools/shared-context.ts:42,46`) |
 | `POLL_INTERVAL_MS` | `2000` | Interval between polls of `GET /pulls/:id/runs`; rejected below `1000` (the API's global rate limit is 120 req/min) (`src/config.ts:32,37,75`) |
 | `RESOLVE_TIMEOUT_MS` | `20000` | Timeout for the repo/PR/agent resolution HTTP calls (`src/config.ts:33`) |
 
@@ -78,63 +78,47 @@ claude mcp add --transport stdio devdigest -- node <abs>/dist/index.js
 (`src/tools/run-agent-on-pr.ts:77-87`):
 
 ```json
-{"repo": "acme/payments-api", "pr": 482, "agent": "general"}
+{"pr_id": "a23e635c-cb87-4230-8bb8-ff3fa63d1c30", "agent_id": "general"}
 ```
 
-`devdigest_get_findings`, call shape 1 — by `run_id` (the handle a prior
-`devdigest_run_agent_on_pr` call in the **same process** returned):
+`devdigest_get_findings` — by `pr_id` (the same internal id
+`devdigest_run_agent_on_pr` takes), grouped by agent, latest run per agent by
+default:
 
 ```json
-{"run_id": "run_abc123"}
+{"pr_id": "a23e635c-cb87-4230-8bb8-ff3fa63d1c30"}
 ```
 
-`devdigest_get_findings`, call shape 2 — by `repo` + `pr` (no cache needed;
-looks up the PR's most recent run, `src/tools/get-findings.ts:181-198`):
+Pass `all_runs: true` to get every run per agent instead of just each
+agent's latest:
 
 ```json
-{"repo": "acme/payments-api", "pr": 482, "response_format": "detailed", "offset": 25, "limit": 25}
+{"pr_id": "a23e635c-cb87-4230-8bb8-ff3fa63d1c30", "all_runs": true}
 ```
 
-The two identifiers are mutually exclusive — passing both, or neither, or
-`repo` without `pr`, returns an actionable error naming both accepted call
-shapes (`src/schemas.ts:110-151`).
+No `run_id` lookup and no cache — `pr_id` alone is always enough to check on
+a review, including one still running past `devdigest_run_agent_on_pr`'s
+timeout (`src/tools/get-findings.ts:81-97`).
 
-### `response_format`
+### The `reviews` array's per-entry shape
 
-`devdigest_get_findings` defaults to `'concise'`. Both field lists are the
-literal, test-asserted key sets (`src/tools/run-agent-on-pr.ts:57-74`):
+Each entry in the result's `reviews` array is one agent's (selected) run,
+keyed by its own `status`:
 
-- **concise** (default, 7 keys): `severity`, `category`, `title`, `file`,
-  `start_line`, `end_line`, `rationale`
-- **detailed** (11 keys): the 7 concise keys plus `suggestion`, `confidence`,
-  `id`, `review_id` — the two identifiers a caller needs to call the
-  server's `POST /findings/:id/accept` / `POST /findings/:id/dismiss`
-  endpoints on one specific finding
+- **`running`** — no `findings`/`verdict` yet.
+- **`failed`** / **`cancelled`** — carries `error`, no `findings`.
+- **`done`** — carries `verdict`, `summary`, `score`, and `findings`. Every
+  finding uses the full detailed field set (`src/tools/run-agent-on-pr.ts:57-74`,
+  `DETAILED_FINDING_FIELDS`, 11 keys: `severity`, `category`, `title`, `file`,
+  `start_line`, `end_line`, `rationale`, `suggestion`, `confidence`, `id`,
+  `review_id`) — there is no `response_format` toggle in this tool, since
+  `id`/`review_id` (needed to call the server's `POST /findings/:id/accept` /
+  `POST /findings/:id/dismiss`) are always included. Findings with a non-null
+  `dismissed_at` are filtered out before projection
+  (`src/tools/get-findings.ts:155-158`).
 
-### Pagination
-
-`offset` defaults to `0`, `limit` defaults to `25` (hard maximum `100`)
-(`src/schemas.ts:68-69`). Findings with a non-null `dismissed_at` are
-filtered out **before** the `offset`/`limit` slice is taken, in both
-`response_format` modes (`src/tools/run-agent-on-pr.ts:110-112`,
-`src/tools/get-findings.ts:238-241`). When another page exists, the response
-carries a `next_step` naming the exact follow-up call
-(`src/tools/get-findings.ts:266-274`).
-
-## The run-id cache is process-lifetime only
-
-`devdigest_run_agent_on_pr` records `run_id → {repoId, prId, agentId, ...}`
-in an in-memory `Map` (`src/runs/run-cache.ts:49-79`), capped at 500 entries
-with FIFO eviction (`src/runs/run-cache.ts:47`). This cache does **not**
-survive an MCP server restart, and a `run_id` from a different process is
-always an unrecoverable miss — there is no backend endpoint that resolves a
-review by `run_id` alone (`src/runs/run-cache.ts:10-19`).
-
-**Workaround:** a `devdigest_get_findings` cache miss on `run_id` always
-leads with the cache-free alternative — call the tool again with `repo` +
-`pr` instead, which needs no cache and looks up the PR's most recent run
-(`src/tools/get-findings.ts:122-131`). Re-running `devdigest_run_agent_on_pr`
-is offered as the second option.
+There is no `offset`/`limit` — every finding of every selected run is
+returned in one call.
 
 ## Commands
 

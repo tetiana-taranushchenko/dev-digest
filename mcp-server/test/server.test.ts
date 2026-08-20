@@ -5,7 +5,6 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DevDigestApiClient, type FetchLike } from '../src/api/client.js';
-import { RunCache } from '../src/runs/run-cache.js';
 import { createMcpServer } from '../src/server.js';
 import { SERVER_INSTRUCTIONS } from '../src/tools/shared-context.js';
 
@@ -35,7 +34,6 @@ async function setup(): Promise<Harness> {
   const apiClient = new DevDigestApiClient({ baseUrl: BASE_URL, fetch: unusedFetch() });
   const server = createMcpServer({
     client: apiClient,
-    runCache: new RunCache(),
     reviewTimeoutMs: 120_000,
     pollIntervalMs: 2_000,
   });

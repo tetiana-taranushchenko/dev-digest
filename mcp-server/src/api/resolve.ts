@@ -5,8 +5,8 @@
 //     starting a review.
 //   - `devdigest_get_findings`'s `repo` + `pr` path (T9, "Path B") — resolves
 //     repo + pr before looking up the PR's most recent run.
-//   - `devdigest_get_conventions` (T10) — resolves repo before listing its
-//     conventions.
+//   - `devdigest_get_conventions` — resolves `repo_id` (the repo's internal
+//     id, via `resolveRepoById`) before listing its conventions.
 //   - `devdigest_get_blast_radius` (T10) — schema-only consumer: its input
 //     shape mirrors `devdigest_run_agent_on_pr`'s `repo` + `pr` pair so the
 //     contract won't change once the real implementation lands, but the stub
@@ -19,6 +19,7 @@
 // available options and states a concrete next step (REQ-8) — callers are
 // expected to catch it and surface `error.message` verbatim as the tool's
 // actionable result text.
+import { ApiError } from './types.js';
 import type { Agent, PrMeta, Repo } from './types.js';
 import type { DevDigestApiClient } from './client.js';
 
@@ -54,6 +55,27 @@ export async function resolveRepo(
 }
 
 /**
+ * Resolves `repoId` — the repo's internal DevDigest id, NOT its "owner/name"
+ * — to a `Repo` by exact match on `id`, reusing the same `GET /repos`
+ * listing `resolveRepo` uses (no dedicated `GET /repos/:id` endpoint exists
+ * server-side). A miss lists every known `id` + `full_name` pair, the same
+ * style `resolveAgent` uses for its own opaque-id lookup.
+ */
+export async function resolveRepoById(client: DevDigestApiClient, repoId: string): Promise<Repo> {
+  const repos = await client.listRepos();
+  const match = repos.find((repo) => repo.id === repoId);
+  if (!match) {
+    const known = repos.map((repo) => `${repo.id} (${repo.full_name})`);
+    const list = known.length > 0 ? known.join(', ') : '(no repos are registered yet)';
+    throw new ResolveError(
+      `repo_id "${repoId}" was not found. repo_id is the repo's internal DevDigest id, not its ` +
+        `"owner/name" — known repos (id (owner/name)): ${list}.`,
+    );
+  }
+  return match;
+}
+
+/**
  * Resolves `number` (the GitHub PR number, not an internal id) to a `PrMeta`
  * within `repoId` by matching `PrMeta.number` (`platform.ts:160`). A miss
  * lists every known number. A matched PR whose `id` is nullish
@@ -82,6 +104,31 @@ export async function resolvePull(
     );
   }
   return { ...match, id: match.id };
+}
+
+/**
+ * Resolves `prId` — an internal PR id, NOT the GitHub PR number — to its
+ * `{id, number}` via `GET /pulls/:id`. Unlike `resolvePull`, a miss cannot
+ * enumerate known values (the id is opaque and there is no listing that maps
+ * to it directly), so the message instead states what `pr_id` is and where
+ * to find it.
+ */
+export async function resolvePullById(
+  client: DevDigestApiClient,
+  prId: string,
+): Promise<{ id: string; number: number }> {
+  try {
+    return await client.getPull(prId);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      throw new ResolveError(
+        `pr_id "${prId}" was not found. pr_id is the PR's internal DevDigest id (a UUID), ` +
+          'not the GitHub PR number — find it in the DevDigest app, or in a prior API/tool ' +
+          'response, and check it for typos.',
+      );
+    }
+    throw err;
+  }
 }
 
 /**

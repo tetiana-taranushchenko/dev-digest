@@ -2,10 +2,10 @@
 //
 // This is the **only** file in `mcp-server/` that reads `process.env`
 // (REQ-13/T12) — it feeds the raw values into T2's pure `loadConfig`, builds
-// the `DevDigestApiClient` + `RunCache`, calls T11's transport-free
-// `createMcpServer`, and connects a real `StdioServerTransport` (T11's
-// `server.ts` deliberately never imports the transport itself, so this file
-// is the one place that does).
+// the `DevDigestApiClient`, calls T11's transport-free `createMcpServer`,
+// and connects a real `StdioServerTransport` (T11's `server.ts` deliberately
+// never imports the transport itself, so this file is the one place that
+// does).
 //
 // stdout is reserved for the JSON-RPC wire on the stdio transport (REQ-13):
 // a stray write there breaks the host with a JSON parse error. All
@@ -15,7 +15,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { DevDigestApiClient } from './api/client.js';
 import { loadConfig } from './config.js';
-import { RunCache } from './runs/run-cache.js';
 import { createMcpServer } from './server.js';
 
 async function main(): Promise<void> {
@@ -26,11 +25,9 @@ async function main(): Promise<void> {
     baseUrl: config.apiBaseUrl,
     fetch: globalThis.fetch,
   });
-  const runCache = new RunCache();
 
   const server: McpServer = createMcpServer({
     client,
-    runCache,
     reviewTimeoutMs: config.reviewTimeoutMs,
     pollIntervalMs: config.pollIntervalMs,
   });

@@ -13,6 +13,7 @@ import {
   ApiErrorEnvelope,
   ConventionCandidateResponse,
   HealthResponse,
+  PrDetailResponse,
   PrMetaResponse,
   RepoResponse,
   ReviewRecordResponse,
@@ -89,6 +90,20 @@ export class DevDigestApiClient {
     const path = `/repos/${encodeURIComponent(repoId)}/pulls`;
     const data = await this.request('GET', path, undefined, timeoutMs);
     return z.array(PrMetaResponse).parse(data) as PrMeta[];
+  }
+
+  /**
+   * `GET /pulls/:id` (`pulls/routes.ts:35`) — full PR detail. Only `id` and
+   * `number` are parsed; used to validate a caller-supplied internal `pr_id`
+   * and recover its GitHub PR number for display.
+   */
+  async getPull(
+    prId: string,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+  ): Promise<{ id: string; number: number }> {
+    const path = `/pulls/${encodeURIComponent(prId)}`;
+    const data = await this.request('GET', path, undefined, timeoutMs);
+    return PrDetailResponse.parse(data);
   }
 
   /** `GET /agents` (`agents/routes.ts:74`). */

@@ -1,19 +1,17 @@
 // `devdigest_run_agent_on_pr` — the only mutating tool (REQ-6, REQ-7, REQ-8,
 // REQ-9, REQ-16).
 //
-// Implements the 7-step sequence from the plan's Behaviour specifications
-// ("devdigest_run_agent_on_pr(repo, pr, agent) — the only mutating tool"):
+// Implements the sequence from the plan's Behaviour specifications, adapted
+// for the `(pr_id, agent_id)` signature (a deliberate deviation from the
+// plan's original `(repo, pr, agent)` — see `mcp-server/INSIGHTS.md`):
 //   1. Validate flat args — already done by the SDK against
 //      `runAgentOnPrInputSchema` (T6) before this handler ever runs.
-//   2. Resolve repo -> repoId via T4's `resolveRepo`.
-//   3. Resolve pr (number) -> prId via T4's `resolvePull`.
-//   4. Resolve agent (id or name) -> Agent via T4's `resolveAgent`.
-//   5. POST /pulls/:prId/review { agentId } via T3's `startReview`, take
+//   2. Resolve pr_id (the PR's internal id) -> {id, number} via T4's
+//      `resolvePullById`.
+//   3. Resolve agent_id (id or name) -> Agent via T4's `resolveAgent`.
+//   4. POST /pulls/:prId/review { agentId } via T3's `startReview`, take
 //      `runs[0].run_id`. The always-empty `reviews` field is ignored.
-//   6. Record `run_id -> {repoId, prId, prNumber, repoFullName, agentId,
-//      agentName}` in T5's `RunCache` BEFORE polling begins — critical
-//      ordering: a timeout must still leave `devdigest_get_findings` usable.
-//   7. Poll `GET /pulls/:prId/runs` (T3's `listRuns`) every `pollIntervalMs`
+//   5. Poll `GET /pulls/:prId/runs` (T3's `listRuns`) every `pollIntervalMs`
 //      for the row matching `run_id`, until its status leaves `'running'` or
 //      `reviewTimeoutMs` elapses:
 //        - `done` -> `GET /pulls/:prId/reviews` (T3's `listReviews`), find
@@ -31,22 +29,19 @@
 //          method, so not cancelling on timeout is correct, not merely
 //          convenient.
 //
-// Exports two families of helpers T9 (`devdigest_get_findings`) imports
-// rather than reimplementing:
-//   - the REQ-9 finding-trimming machinery: `CONCISE_FINDING_FIELDS`,
-//     `DETAILED_FINDING_FIELDS`, `RUN_RESULT_FINDING_FIELDS`,
-//     `pickFindingFields`, `excludeDismissedFindings`, `toRunResultFindings`.
-//   - the shared "not completed yet" result builders, `stillRunning` and
-//     `failedRunResult`, so `devdigest_get_findings`'s repo+pr path returns
-//     the exact same shape as this tool's own timeout/failure outcomes
-//     (Behaviour spec, Path B steps 4-5) — one shape per outcome, built by
-//     one function, reused rather than reinvented.
+// Exports finding-trimming machinery `devdigest_get_findings` imports rather
+// than reimplementing: `CONCISE_FINDING_FIELDS`, `DETAILED_FINDING_FIELDS`,
+// `RUN_RESULT_FINDING_FIELDS`, `pickFindingFields`, `excludeDismissedFindings`,
+// `toRunResultFindings`. `stillRunning`/`failedRunResult` are NOT reused by
+// `devdigest_get_findings` — that tool now groups every agent's runs into one
+// array (each with its own inline status), rather than the whole tool result
+// being a single `{status: 'still_running'|'failed'|'cancelled', ...}` shape
+// the way this tool's own (single-run) result can be. See INSIGHTS.md.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { ApiError, type DevDigestApiClient, type ReviewRunTarget } from '../api/client.js';
-import { resolveAgent, resolvePull, resolveRepo, ResolveError } from '../api/resolve.js';
+import { resolveAgent, resolvePullById, ResolveError } from '../api/resolve.js';
 import type { ReviewRecord, RunSummary } from '../api/types.js';
-import type { RunCache } from '../runs/run-cache.js';
 import { runAgentOnPrInputSchema } from '../schemas.js';
 import { RUN_AGENT_ON_PR_DESCRIPTION } from './shared-context.js';
 
@@ -126,20 +121,19 @@ export interface StillRunningResult {
 }
 
 /**
- * Builds the "still running" result. Both this tool's own timeout branch
- * (step 7) and `devdigest_get_findings`' repo+pr path (Behaviour spec, Path
- * B step 4, "the same `{status: 'still_running', run_id, message}` object
- * devdigest_run_agent_on_pr returns on timeout") return exactly this shape —
- * one builder, reused rather than reinvented. Names both
- * `devdigest_get_findings` and the literal `run_id` (REQ-8).
+ * Builds the "still running" result for this tool's own timeout branch
+ * (step 6). Names both `devdigest_get_findings` and the `pr_id` to retry
+ * with (REQ-8) — `devdigest_get_findings` no longer accepts `run_id` (it
+ * takes `pr_id` and groups every agent's runs, see INSIGHTS.md), so `pr_id`
+ * is the only valid way to check again.
  */
-export function stillRunning(runId: string): StillRunningResult {
+export function stillRunning(prId: string, runId: string): StillRunningResult {
   return {
     status: 'still_running',
     run_id: runId,
     message:
-      'The review is still running after the ~2 min budget. It has not been cancelled — ' +
-      `call devdigest_get_findings with run_id="${runId}" (or with repo+pr) in a bit to check again.`,
+      'The review is still running after the ~5 min budget. It has not been cancelled — ' +
+      `call devdigest_get_findings with pr_id="${prId}" in a bit to check again.`,
   };
 }
 
@@ -176,10 +170,9 @@ export function failedRunResult(run: {
 
 export interface RunAgentOnPrDeps {
   client: DevDigestApiClient;
-  runCache: RunCache;
   /**
    * Max time (ms) to poll before returning `still_running` (T2's
-   * `loadConfig().reviewTimeoutMs`, default 120000, "~2 min"). Injected —
+   * `loadConfig().reviewTimeoutMs`, default 300000, "~5 min"). Injected —
    * never read from `process.env` here.
    */
   reviewTimeoutMs: number;
@@ -261,29 +254,22 @@ export function registerRunAgentOnPrTool(server: McpServer, deps: RunAgentOnPrDe
       },
     },
     async (args): Promise<CallToolResult> => {
-      // Steps 2-4: resolve repo -> pr -> agent through T4's shared resolver.
-      let repo;
-      try {
-        repo = await resolveRepo(deps.client, args.repo);
-      } catch (err) {
-        return errorResult(err);
-      }
-
+      // Steps 2-3: resolve pr_id -> pull, agent_id -> agent through T4's shared resolver.
       let pull;
       try {
-        pull = await resolvePull(deps.client, repo.id, args.pr);
+        pull = await resolvePullById(deps.client, args.pr_id);
       } catch (err) {
         return errorResult(err);
       }
 
       let agent;
       try {
-        agent = await resolveAgent(deps.client, args.agent);
+        agent = await resolveAgent(deps.client, args.agent_id);
       } catch (err) {
         return errorResult(err);
       }
 
-      // Step 5: POST /pulls/:prId/review { agentId }, take runs[0]. The
+      // Step 4: POST /pulls/:prId/review { agentId }, take runs[0]. The
       // always-empty `reviews` field (Context Finding 1) is never read.
       let runs: ReviewRunTarget[];
       try {
@@ -305,18 +291,7 @@ export function registerRunAgentOnPrTool(server: McpServer, deps: RunAgentOnPrDe
         );
       }
 
-      // Step 6: record the run BEFORE polling begins, so a timeout still
-      // leaves devdigest_get_findings usable (critical ordering, REQ-8).
-      deps.runCache.remember(run.run_id, {
-        repoId: repo.id,
-        prId: pull.id,
-        prNumber: pull.number,
-        repoFullName: repo.full_name,
-        agentId: run.agent_id,
-        agentName: run.agent_name,
-      });
-
-      // Step 7: poll until done/failed/cancelled or timeout. Never calls
+      // Step 5: poll until done/failed/cancelled or timeout. Never calls
       // POST /runs/:id/cancel on timeout — T3's client doesn't expose it.
       let pollResult: PollOutcome;
       try {
@@ -332,7 +307,7 @@ export function registerRunAgentOnPrTool(server: McpServer, deps: RunAgentOnPrDe
       }
 
       if (pollResult.outcome === 'timeout') {
-        return textResult(stillRunning(run.run_id));
+        return textResult(stillRunning(pull.id, run.run_id));
       }
 
       const matchedRun = pollResult.run;
@@ -362,7 +337,7 @@ export function registerRunAgentOnPrTool(server: McpServer, deps: RunAgentOnPrDe
             status: 'error',
             message:
               `Run ${run.run_id} finished but no matching review was found for PR #${pull.number}. ` +
-              `Try devdigest_get_findings with run_id="${run.run_id}", or re-run devdigest_run_agent_on_pr.`,
+              `Try devdigest_get_findings with pr_id="${pull.id}", or re-run devdigest_run_agent_on_pr.`,
           },
           true,
         );
@@ -376,7 +351,7 @@ export function registerRunAgentOnPrTool(server: McpServer, deps: RunAgentOnPrDe
         run_id: run.run_id,
         agent_id: run.agent_id,
         agent_name: run.agent_name,
-        repo: repo.full_name,
+        pr_id: pull.id,
         pr: pull.number,
         findings: toRunResultFindings(review.findings),
       });
