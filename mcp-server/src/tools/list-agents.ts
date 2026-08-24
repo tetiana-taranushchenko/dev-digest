@@ -31,7 +31,7 @@ export interface AgentSummary {
 
 function textResult(data: unknown, isError = false): CallToolResult {
   return {
-    content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+    content: [{ type: 'text', text: JSON.stringify(data) }],
     isError,
   };
 }

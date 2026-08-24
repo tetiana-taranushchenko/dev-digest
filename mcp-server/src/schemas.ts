@@ -28,27 +28,54 @@ export const repoSchema = z
   .regex(
     /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/,
     'repo must be "owner/name" (a GitHub full_name), e.g. "acme/payments-api".',
-  );
+  )
+  .describe('Repository full name, "owner/name" (GitHub\'s full_name), e.g. "acme/payments-api".');
 
 /** A GitHub PR number (not an internal id). Must be a positive integer. */
-export const prSchema = z.number().int().positive();
+export const prSchema = z
+  .number()
+  .int()
+  .positive()
+  .describe('The GitHub pull request number (not the internal pr_id), e.g. 42.');
 
 /**
  * A PR's internal DevDigest id (opaque, workspace-scoped) — NOT the GitHub
  * PR number `prSchema` validates. Accepted by devdigest_run_agent_on_pr's
  * `resolvePullById` resolver (T4).
  */
-export const prIdSchema = z.string().min(1).max(200);
+export const prIdSchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .describe(
+    'The PR\'s internal DevDigest id (a UUID, not the GitHub PR number), ' +
+      'e.g. "a23e635c-cb87-4230-8bb8-ff3fa63d1c30". Find it in the DevDigest app or in a ' +
+      'prior tool call\'s response.',
+  );
 
 /**
  * A repo's internal DevDigest id (opaque, workspace-scoped) — NOT its
  * "owner/name" `repoSchema` validates. Accepted by devdigest_get_conventions'
  * `resolveRepoById` resolver (T4).
  */
-export const repoIdSchema = z.string().min(1).max(200);
+export const repoIdSchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .describe(
+    'The repo\'s internal DevDigest id (a UUID, not "owner/name"), ' +
+      'e.g. "7da92249-2b69-44ce-b4a5-a1baa62853b1".',
+  );
 
 /** An agent id or name, as accepted by devdigest_run_agent_on_pr's resolver (T4). */
-export const agentSchema = z.string().min(1).max(200);
+export const agentSchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .describe(
+    'A reviewer agent\'s id or name, e.g. "code-quality-bot". Call devdigest_list_agents ' +
+      'to get valid values.',
+  );
 
 /** devdigest_list_agents takes no arguments. */
 export const listAgentsInputSchema = {};
@@ -66,7 +93,12 @@ export const runAgentOnPrInputSchema = {
  */
 export const getFindingsInputSchema = {
   pr_id: prIdSchema,
-  all_runs: z.boolean().default(false),
+  all_runs: z
+    .boolean()
+    .default(false)
+    .describe(
+      'When true, return every run per agent instead of just the latest one. Default false, e.g. true.',
+    ),
 };
 
 /**
