@@ -5,6 +5,7 @@ import type { PrFile } from "@devdigest/shared";
 import shellMessages from "../../../../messages/en/shell.json";
 
 import { DiffViewer } from "./DiffViewer";
+import { AUTO_EXPAND_MAX_LINES } from "../constants";
 
 afterEach(cleanup);
 
@@ -51,5 +52,29 @@ describe("DiffViewer", () => {
       />,
     );
     expect(screen.getByLabelText("Large file src/large.ts: 151 changed lines")).toBeInTheDocument();
+  });
+
+  it("forces open only the file matching targetFile, leaving other large files collapsed", () => {
+    const files: PrFile[] = [
+      {
+        path: "src/target-large.ts",
+        additions: AUTO_EXPAND_MAX_LINES + 1,
+        deletions: 0,
+        patch: "@@ -0,0 +1,1 @@\n+target line",
+      },
+      {
+        path: "src/other-large.ts",
+        additions: AUTO_EXPAND_MAX_LINES + 1,
+        deletions: 0,
+        patch: "@@ -0,0 +1,1 @@\n+other line",
+      },
+    ];
+
+    renderWithIntl(<DiffViewer files={files} targetFile="src/target-large.ts" />);
+
+    // The targeted file's lines render even though it's above the auto-expand threshold.
+    expect(screen.getByText("target line")).toBeInTheDocument();
+    // The other large file, not matching targetFile, stays collapsed.
+    expect(screen.queryByText("other line")).not.toBeInTheDocument();
   });
 });

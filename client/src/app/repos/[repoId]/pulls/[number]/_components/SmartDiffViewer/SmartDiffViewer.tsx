@@ -34,6 +34,11 @@ export interface SmartDiffViewerProps {
   reviews: ReviewRecord[];
   commenting?: DiffCommentApi;
   onFindingClick: (findingId: string) => void;
+  /** When set, forces the group containing this file open (overriding the
+   *  role-based default, e.g. "boilerplate" groups starting collapsed) and
+   *  forces that file's own FileCard open regardless of its size — mirrors
+   *  DiffViewer's targetFile handling for Blast Radius/Findings navigation. */
+  targetFile?: string | null;
 }
 
 export function SmartDiffViewer({
@@ -44,6 +49,7 @@ export function SmartDiffViewer({
   reviews,
   commenting,
   onFindingClick,
+  targetFile,
 }: SmartDiffViewerProps) {
   const t = useTranslations("smartDiff");
   const fileMap = React.useMemo(() => buildFileMap(files), [files]);
@@ -76,6 +82,7 @@ export function SmartDiffViewer({
           projection={projection}
           commenting={commenting}
           onFindingClick={onFindingClick}
+          targetFile={targetFile}
         />
       ))}
     </div>
@@ -88,15 +95,18 @@ function SmartDiffGroupSection({
   projection,
   commenting,
   onFindingClick,
+  targetFile,
 }: {
   group: SmartDiffGroup;
   fileMap: Map<string, PrFile>;
   projection: SmartDiffFindingProjection;
   commenting?: DiffCommentApi;
   onFindingClick: (findingId: string) => void;
+  targetFile?: string | null;
 }) {
   const t = useTranslations("smartDiff");
-  const [open, setOpen] = React.useState(group.role !== "boilerplate");
+  const containsTarget = targetFile != null && group.files.some((f) => f.path === targetFile);
+  const [open, setOpen] = React.useState(group.role !== "boilerplate" || containsTarget);
   const RoleIcon = Icon[ROLE_ICON[group.role]];
 
   return (
@@ -128,6 +138,7 @@ function SmartDiffGroupSection({
                 key={file.path}
                 file={prFile}
                 commenting={commenting}
+                defaultOpen={file.path === targetFile ? true : undefined}
                 findingsByLine={findingsByLine}
                 onFindingClick={onFindingClick}
                 findingAriaLabel={(finding: DiffLineFinding, path, line) =>

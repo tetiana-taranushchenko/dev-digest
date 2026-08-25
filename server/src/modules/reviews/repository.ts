@@ -21,7 +21,7 @@ export type ReviewRow = typeof t.reviews.$inferSelect;
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
-export type { UpsertIntentInput, IntentRow } from './repository/pull.repo.js';
+export type { UpsertIntentInput, IntentRow, PriorPrRow } from './repository/pull.repo.js';
 
 export class ReviewRepository {
   constructor(private db: Db) {}
@@ -49,6 +49,18 @@ export class ReviewRepository {
   /** Newest `limit` commits for a PR (message + committedAt), newest-first. */
   getPrCommits(prId: string, limit: number): Promise<{ message: string; committedAt: Date | null }[]> {
     return pullRepo.getPrCommits(this.db, prId, limit);
+  }
+
+  /** Other PRs in this repo that touched any of `params.paths`, newest-first,
+   *  capped at `params.limit`. See `pull.repo.ts` for ordering/dedupe rules. */
+  getPriorPrsTouchingFiles(params: {
+    workspaceId: string;
+    repoId: string;
+    excludePrId: string;
+    paths: string[];
+    limit: number;
+  }): Promise<pullRepo.PriorPrRow[]> {
+    return pullRepo.getPriorPrsTouchingFiles(this.db, params);
   }
 
   // ---- reviews + findings -------------------------------------------------

@@ -34,7 +34,7 @@ export function IntentPanel({ prId }: { prId: string | null }) {
 
   if (isLoading) {
     return (
-      <section>
+      <section style={s.card}>
         <SectionLabel icon="Target">{t("title")}</SectionLabel>
         <Skeleton height={80} />
       </section>
@@ -44,7 +44,7 @@ export function IntentPanel({ prId }: { prId: string | null }) {
   if (isError) {
     const notFound = error instanceof ApiError && error.status === 404;
     return (
-      <section>
+      <section style={s.card}>
         <SectionLabel icon="Target">{t("title")}</SectionLabel>
         {notFound ? (
           <EmptyState
@@ -75,7 +75,7 @@ export function IntentPanel({ prId }: { prId: string | null }) {
     .join(", ");
 
   return (
-    <section>
+    <section style={s.card}>
       <SectionLabel
         icon="Target"
         right={

@@ -75,12 +75,20 @@ describe('AI contracts parse fixtures', () => {
         downstream: [
           {
             symbol: 'rateLimit',
+            file: 'a.ts',
+            caller_count: 1,
             callers: [{ name: 'publicRouter', file: 'b.ts', line: 23 }],
             endpoints_affected: ['GET /x'],
             crons_affected: ['c'],
           },
         ],
         summary: 's',
+        state: 'ok',
+        reason: null,
+        reason_text: null,
+        truncated: false,
+        index_status: 'full',
+        generated_at: '2026-03-18T00:00:00.000Z',
       }),
     ).not.toThrow();
     expect(() =>

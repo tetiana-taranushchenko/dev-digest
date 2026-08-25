@@ -39,6 +39,7 @@ import type {
   RefRow,
   RepoIntel,
   RepoMapResult,
+  ReverseImpactResult,
   SignatureRow,
   SymbolRow,
 } from './types.js';
@@ -369,7 +370,27 @@ export class RepoIntelService implements RepoIntel {
         rank: c.rank,
       });
     }
-    callers.sort((a, b) => b.rank - a.rank);
+    // Group callers by `viaSymbol` and sort each group deterministically
+    // (rank desc, tie-broken by file asc then line asc) so downstream
+    // consumers (blast/assemble.ts) can rely on ordering. The
+    // MAX_CALLERS_PER_SYMBOL cap is intentionally NOT applied here: capping
+    // per group at this layer would throw away the true per-symbol caller
+    // count before `assembleBlastRadius` ever sees it, making it impossible
+    // to compute an honest `caller_count` or detect `truncated` there. The
+    // cap and truncation decision belong to `blast/assemble.ts`, which
+    // re-groups by `viaSymbol` itself (T4 rule 2) — this layer only groups,
+    // sorts, and returns the full list.
+    const callersByViaSymbol = new Map<string, BlastCallerRow[]>();
+    for (const c of callers) {
+      const group = callersByViaSymbol.get(c.viaSymbol);
+      if (group) group.push(c);
+      else callersByViaSymbol.set(c.viaSymbol, [c]);
+    }
+    const sortedCallers: BlastCallerRow[] = [];
+    for (const group of callersByViaSymbol.values()) {
+      group.sort((a, b) => b.rank - a.rank || a.file.localeCompare(b.file) || a.line - b.line);
+      sortedCallers.push(...group);
+    }
 
     // Precomputed facts per caller file (endpoints + crons), so consumers can
     // attribute them to the changed symbol whose callers live in that file.
@@ -383,7 +404,7 @@ export class RepoIntelService implements RepoIntel {
 
     return {
       changedSymbols,
-      callers: callers.slice(0, MAX_CALLERS_PER_SYMBOL),
+      callers: sortedCallers,
       impactedEndpoints: [...endpoints],
       factsByFile,
       degraded: false,
@@ -699,6 +720,146 @@ export class RepoIntelService implements RepoIntel {
       paths.push(chain);
     }
     return paths;
+  }
+
+  /**
+   * Reverse import-graph walk (T3): "who depends on this file?" — BFS
+   * outward from `changedFiles` via `repository.getImporters` (the
+   * `file_edges_repo_to_idx` reverse-lookup index), up to `BFS_DEPTH` hops.
+   * The original `changedFiles` are excluded from the result. After the
+   * walk, exactly one `getFileFacts` call attaches endpoints/crons for every
+   * visited file (REQ-5: no AST/import-graph recomputation on the request
+   * path — everything here is a persisted-table read).
+   *
+   * This is a BATCHED, multi-source BFS: all `changedFiles` are walked
+   * together (one `getImporters` call per round, not one per source) so
+   * query count stays O(BFS_DEPTH) regardless of how many files changed.
+   * Because sources are batched, `files`/`byFile` alone can't say WHICH
+   * origin(s) reached a given visited file — so `originsByFile` tracks
+   * per-file provenance alongside them: each origin's own origin-set (just
+   * itself, initially) is propagated forward to every file discovered via an
+   * edge from it, merging when a file is reachable from more than one
+   * origin. This costs zero extra `getImporters` round-trips — it's computed
+   * from the same rows the walk already fetches per round, via a per-round
+   * fixed-point propagation pass (see inline comment in the loop below) so
+   * the result is correct and deterministic regardless of the arbitrary row
+   * order `getImporters` returns (it has no ORDER BY).
+   *
+   * `depthLimited` distinguishes "the walk hit the BFS_DEPTH cap while more
+   * graph existed beyond it" from "the walk genuinely ran out of importers".
+   * After the last in-budget round, one extra `getImporters` probe on the
+   * final frontier answers that question; the probe's rows are used only to
+   * set the flag and are never merged into `files`/`byFile`/`originsByFile`.
+   */
+  async getReverseImpact(repoId: string, changedFiles: string[]): Promise<ReverseImpactResult> {
+    const empty: ReverseImpactResult = {
+      files: [],
+      endpoints: [],
+      crons: [],
+      byFile: {},
+      originsByFile: {},
+      depthLimited: false,
+    };
+    if (!this.container.config.repoIntelEnabled) {
+      return { ...empty, degraded: true, reason: 'flag_off' };
+    }
+    if (changedFiles.length === 0) return empty;
+
+    const visited = new Set(changedFiles);
+    const resultFiles: string[] = [];
+    // Each origin (changed file) starts as its own sole provenance. Visited
+    // non-origin files accumulate the union of origin-sets propagated to
+    // them from the frontier file(s) whose edge discovered them.
+    const originsOf = new Map<string, Set<string>>();
+    for (const f of changedFiles) originsOf.set(f, new Set([f]));
+    let frontier = [...changedFiles];
+    let depthLimited = false;
+
+    for (let depth = 0; depth < BFS_DEPTH && frontier.length > 0; depth += 1) {
+      const rows = await this.repo.getImporters(repoId, frontier);
+
+      // Collect this round's edges WITHOUT mutating origin state while
+      // iterating — `getImporters` has no ORDER BY (REQ-5: adding one would
+      // require re-proving safety, see below), so `rows` arrive in
+      // arbitrary order. Edges within a SINGLE round can form a same-round
+      // dependency chain: `frontier` can contain more than one file whose
+      // origin set is still being updated this same round (e.g. two changed
+      // files where B imports A — both are origins, so the B->A edge grows
+      // B's origin set), and a third file discovered this round via an edge
+      // INTO B needs that growth to have already happened. Whether it has
+      // depends on row order, so a single linear pass can under-propagate
+      // (miss origins that arrive "too late" in row order).
+      //
+      // Fix: treat propagation over this round's (already-fetched, no extra
+      // getImporters calls) edge list as a fixed point — repeat passes until
+      // no origin set changes. This converges to the correct transitive
+      // closure for the round regardless of row order, because each pass
+      // only ever adds elements to a set (monotonic) and the set of possible
+      // origins is bounded by `changedFiles.length`, so it terminates.
+      const edges = rows.map((row) => ({ fromFile: row.fromFile, toFile: row.toFile }));
+
+      const nextFrontier: string[] = [];
+      const discoveredThisRound = new Set<string>();
+      for (const edge of edges) {
+        if (!originsOf.has(edge.toFile)) originsOf.set(edge.toFile, new Set([edge.toFile]));
+        if (!originsOf.has(edge.fromFile)) originsOf.set(edge.fromFile, new Set<string>());
+
+        if (!visited.has(edge.fromFile) && !discoveredThisRound.has(edge.fromFile)) {
+          discoveredThisRound.add(edge.fromFile);
+          visited.add(edge.fromFile);
+          resultFiles.push(edge.fromFile);
+          nextFrontier.push(edge.fromFile);
+        }
+      }
+
+      let changedInPass = true;
+      while (changedInPass) {
+        changedInPass = false;
+        for (const edge of edges) {
+          const toOrigins = originsOf.get(edge.toFile)!;
+          const fromOrigins = originsOf.get(edge.fromFile)!;
+          for (const o of toOrigins) {
+            if (!fromOrigins.has(o)) {
+              fromOrigins.add(o);
+              changedInPass = true;
+            }
+          }
+        }
+      }
+
+      frontier = nextFrontier;
+
+      if (depth === BFS_DEPTH - 1 && frontier.length > 0) {
+        const beyond = await this.repo.getImporters(repoId, frontier);
+        depthLimited = beyond.some((row) => !visited.has(row.fromFile));
+      }
+    }
+
+    if (resultFiles.length === 0) return { ...empty, depthLimited };
+
+    const facts = await this.repo.getFileFacts(repoId, resultFiles);
+    const byFile: Record<string, { endpoints: string[]; crons: string[] }> = {};
+    const endpoints = new Set<string>();
+    const crons = new Set<string>();
+    for (const f of facts) {
+      byFile[f.filePath] = { endpoints: f.endpoints, crons: f.crons };
+      for (const e of f.endpoints) endpoints.add(e);
+      for (const c of f.crons) crons.add(c);
+    }
+
+    const originsByFile: Record<string, string[]> = {};
+    for (const f of resultFiles) {
+      originsByFile[f] = [...(originsOf.get(f) ?? [])].sort();
+    }
+
+    return {
+      files: resultFiles,
+      endpoints: [...endpoints],
+      crons: [...crons],
+      byFile,
+      originsByFile,
+      depthLimited,
+    };
   }
 }
 

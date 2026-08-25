@@ -61,6 +61,11 @@ export default function PRDetailPage() {
   const tab = search.get("tab") ?? "overview";
   const traceRunId = search.get("trace");
   const findingParam = search.get("finding");
+  const targetFile = search.get("file");
+  const targetLineParam = search.get("line");
+  const targetLine = targetLineParam != null && targetLineParam !== "" && !Number.isNaN(Number(targetLineParam))
+    ? Number(targetLineParam)
+    : null;
   const setParam = (key: string, val: string | null) => {
     const sp = new URLSearchParams(search.toString());
     if (val == null) sp.delete(key);
@@ -137,7 +142,17 @@ export default function PRDetailPage() {
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
-        {tab === "overview" && <OverviewTab prId={prId} prBody={pr.body} />}
+        {tab === "overview" && (
+          <OverviewTab
+            prId={prId}
+            prBody={pr.body}
+            repoId={repoId}
+            prNumber={pr.number}
+            repoFullName={repoFullName}
+            headSha={pr.head_sha}
+            files={pr.files}
+          />
+        )}
 
         {tab === "findings" && (
           <FindingsTab
@@ -184,6 +199,8 @@ export default function PRDetailPage() {
             files={pr.files}
             reviews={runs}
             canComment={pr.status === "open"}
+            targetFile={targetFile}
+            targetLine={targetLine}
           />
         )}
       </div>

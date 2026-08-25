@@ -72,18 +72,67 @@ export const BlastCaller = z.object({
 });
 export type BlastCaller = z.infer<typeof BlastCaller>;
 
+/** Overall blast-radius outcome for a PR. Distinct from `BlastIndexStatus`:
+ * this reflects whether the *result* is usable, not the index's own health. */
+export const BlastState = z.enum(['ok', 'empty', 'partial', 'degraded']);
+export type BlastState = z.infer<typeof BlastState>;
+
+/** Health of the repo-intel index backing a blast-radius read. */
+export const BlastIndexStatus = z.enum([
+  'full',
+  'partial',
+  'degraded',
+  'failed',
+  'missing',
+]);
+export type BlastIndexStatus = z.infer<typeof BlastIndexStatus>;
+
 export const DownstreamImpact = z.object({
   symbol: z.string(),
+  /** Declaring file, so a row is self-contained. */
+  file: z.string(),
+  /** True caller count before the `MAX_CALLERS_PER_SYMBOL` cap. */
+  caller_count: z.number().int(),
+  /** Capped list — see `caller_count` for the true total. */
   callers: z.array(BlastCaller),
   endpoints_affected: z.array(z.string()),
   crons_affected: z.array(z.string()),
 });
 export type DownstreamImpact = z.infer<typeof DownstreamImpact>;
 
+/**
+ * One other PR in the same repo that previously touched at least one of this
+ * PR's changed files. Reference data only: never part of the blast-radius
+ * graph (`changed_symbols`/`downstream`) and never an input to `state`.
+ */
+export const PriorPr = z.object({
+  number: z.number().int(),
+  title: z.string(),
+  /** ISO timestamp of that PR's last update. `null` when the imported row has
+   *  no `updated_at` — the column is nullable (`db/schema/pulls.ts:28`). */
+  updated_at: z.string().nullish(),
+});
+export type PriorPr = z.infer<typeof PriorPr>;
+
 export const BlastRadius = z.object({
   changed_symbols: z.array(ChangedSymbol),
   downstream: z.array(DownstreamImpact),
+  /** Other PRs in this repo that touched any of the current PR's changed
+   *  files, newest-first, capped at `MAX_PRIOR_PRS`. `[]` = the query ran and
+   *  found none (a normal outcome, NOT a degraded signal); absent/`null` = a
+   *  server that doesn't compute this. Never influences `state`. */
+  prior_prs: z.array(PriorPr).nullish(),
   summary: z.string(),
+  state: BlastState,
+  /** Machine reason code (e.g. `index_partial`, `no_data`). */
+  reason: z.string().nullish(),
+  /** Human-readable sentence; non-null whenever `state !== 'ok'`. */
+  reason_text: z.string().nullish(),
+  /** True if any symbol's caller list hit the `MAX_CALLERS_PER_SYMBOL` cap. */
+  truncated: z.boolean(),
+  index_status: BlastIndexStatus,
+  /** ISO timestamp of when this result was assembled. */
+  generated_at: z.string(),
 });
 export type BlastRadius = z.infer<typeof BlastRadius>;
 
