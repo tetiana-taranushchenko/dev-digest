@@ -1,8 +1,8 @@
 ---
 name: plan-verifier
-description: 'Use proactively after implementation work is finished to verify the result against a planner-authored Development Plan (a file under docs/plans/**), point by point. Enumerates every REQ-n and every task-row Acceptance criterion as its own result row with PASS/FAIL/PARTIAL/NOT-VERIFIABLE and file:line or command-output evidence, and additionally checks owned-path discipline and dependency-order compliance. Strictly read-only — no Edit, no Write, no subagent spawning; it never fixes what it finds and must run as a separate instance from the implementer that wrote the code. Not a substitute for code review, architecture review, or security review. Examples: "Verify docs/plans/pr-archive.md against the current branch", "Check which acceptance criteria in the archive plan are still unmet".'
+description: 'Use proactively after implementation work is finished to verify the result against an implementation-planner-authored Development Plan (a file under docs/plans/**), point by point. Enumerates every REQ-n and every task-row Acceptance criterion as its own result row with PASS/FAIL/PARTIAL/NOT-VERIFIABLE and file:line or command-output evidence, and additionally checks owned-path discipline and dependency-order compliance. Strictly read-only — no Edit, no Write, no subagent spawning; it never fixes what it finds and must run as a separate instance from the implementer that wrote the code. Not a substitute for code review, architecture review, or security review. Examples: "Verify docs/plans/pr-archive.md against the current branch", "Check which acceptance criteria in the archive plan are still unmet".'
 tools: Read, Glob, Grep, Bash
-model: opus
+model: sonnet
 skills:
   - onion-architecture
   - react-testing-library

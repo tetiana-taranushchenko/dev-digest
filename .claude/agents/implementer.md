@@ -1,6 +1,7 @@
 ---
 name: implementer
-description: Use proactively to implement ONE task from a Development Plan written by planner (a file under docs/plans/**). Handles both backend (server/ — Fastify/Drizzle/onion-architecture) and frontend (client/ — Next.js/React) work for that single task, applies the plan's assigned skills (every relevant project skill is preloaded — nothing to invoke manually for the common cases), and self-verifies by running the affected module's existing tests + typecheck to green. Does not audit architecture, security, or code outside its task's owned paths — those are separate agents'/skills' jobs. Safe to run in parallel with other implementer instances on tasks with disjoint owned paths. Examples: "Implement task T1 from docs/plans/pr-archive.md", "Implement task T2 (owned path client/src/app/foo/page.tsx) from the archive-endpoint plan".
+description: >-
+  Use proactively to implement ONE task from a Development Plan written by implementation-planner (a file under docs/plans/**). Handles backend (server/ — Fastify/Drizzle/onion-architecture), frontend (client/ — Next.js/React), and mcp-server (standalone TS MCP stdio server) work for that single task, applies the plan's assigned skills (every relevant project skill is preloaded — nothing to invoke manually for the common cases), and self-verifies by running the affected module's existing tests + typecheck to green. Does not audit architecture, security, or code outside its task's owned paths — those are separate agents'/skills' jobs. Safe to run in parallel with other implementer instances on tasks with disjoint owned paths. Examples: "Implement task T1 from docs/plans/pr-archive.md", "Implement task T2 (owned path client/src/app/foo/page.tsx) from the archive-endpoint plan".
 tools: Read, Glob, Grep, Edit, Write, Bash, Skill, Agent
 model: sonnet
 skills:
@@ -33,6 +34,7 @@ on:
 - **ui** → next-best-practices, react-best-practices, react-testing-library,
   react-frontend-architecture, security
 - **core** (reviewer-core) → zod, typescript-expert, security
+- **mcp** (mcp-server) → zod, typescript-expert, security
 - **always** → typescript-expert, engineering-insights
 
 Keep the `Skill` tool available for anything the plan didn't anticipate
@@ -63,6 +65,10 @@ Keep the `Skill` tool available for anything the plan didn't anticipate
   `"use client"` only where interactivity is actually needed.
 - **reviewer-core**: never bypass `groundFindings()`'s citation gate;
   `LLMProvider` is injected, never instantiated inline.
+- **mcp-server**: `@devdigest/shared` is type-only here, never imported at
+  runtime or vendored. Only `src/index.ts` reads `process.env` — everything
+  else takes injected config. Never `console.log`/`process.stdout.write` in
+  `src/**` — stdout is the JSON-RPC wire; diagnostics go to stderr only.
 
 ## Done condition (narrow self-check, not a broad review)
 
@@ -74,6 +80,7 @@ time, and dedicated architecture/security review agents' job beyond that.
 - backend: `cd server && pnpm exec vitest run --exclude '**/*.it.test.ts' && pnpm typecheck`
 - ui: `cd client && pnpm test && pnpm typecheck`
 - core: `cd reviewer-core && npm test && npm run typecheck`
+- mcp: `cd mcp-server && npm run test:unit && npm run typecheck`
 
 Write a new test only if the task's `Acceptance` criterion explicitly
 requires one — otherwise it's enough that the existing suite stays green.
