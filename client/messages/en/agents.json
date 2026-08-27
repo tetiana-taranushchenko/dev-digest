@@ -49,6 +49,7 @@
     "tabs": {
       "config": "Config",
       "skills": "Skills",
+      "context": "Context",
       "evals": "Evals",
       "stats": "Stats",
       "ci": "CI"
@@ -97,6 +98,10 @@
     "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag to reorder.",
     "filterEmpty": "No skills match your filter.",
     "attachBlocked": "Couldn't attach that skill — its content looked unsafe."
+  },
+  "context": {
+    "title": "Context",
+    "saveFailed": "Couldn't save context — try again."
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

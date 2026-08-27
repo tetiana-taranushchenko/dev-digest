@@ -55,8 +55,20 @@ export class SimpleGitClient implements GitClient {
     const dest = this.clonePathFor(repo);
     await mkdir(join(this.cloneDir, repo.owner), { recursive: true });
     if (await this.exists(join(dest, '.git'))) {
-      // already cloned → fetch latest
-      await simpleGit(dest).fetch();
+      // already cloned → fetch latest AND advance the worktree. A bare fetch
+      // only moves the `origin/<branch>` ref; without a reset, the checked-out
+      // files on disk never move past whatever commit the original clone left
+      // them at (see sync(), which has the same fetch+reset shape below).
+      const g = simpleGit(dest);
+      let branch = opts?.branch;
+      if (!branch) {
+        // No branch was specified for this call — ask the remote which branch
+        // its HEAD points at, so a plain re-clone still advances correctly.
+        const symref = await g.raw(['ls-remote', '--symref', url, 'HEAD']);
+        branch = symref.match(/ref:\s+refs\/heads\/(\S+)\s+HEAD/)?.[1];
+      }
+      await g.fetch(branch ? ['origin', branch] : ['origin']);
+      if (branch) await g.reset(['--hard', `origin/${branch}`]);
       return { path: dest };
     }
     // A prior clone may have timed out mid-write, leaving a partial dir without

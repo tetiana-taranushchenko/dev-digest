@@ -21,6 +21,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [react-frontend-architecture](react-frontend-architecture/SKILL.md) | Frontend | Where components/hooks/constants/business-logic live, folder structure, Next.js App Router organization |
 | [pr-self-review](pr-self-review/SKILL.md) | Shared | Runs applicable skills against the branch diff before opening a PR; blocks push on critical findings |
 | [implement-plan](implement-plan/SKILL.md) | Shared | Executes a Development Plan end to end: implementer(s) per phase → architecture-reviewer ∥ plan-verifier → bounded iterative fix loop (max-fix) → final full plan-verifier regression check → doc-writer (test-writer excluded for now) |
+| [workflow-retro](workflow-retro/SKILL.md) | Shared | Manual-only (`/workflow-retro`) retrospective on a just-finished multi-subagent stretch — agent order/outcomes, approximate token cost, friction/duplication/gaps, human interventions, one concrete next-time recommendation. Appends to `.claude/agents/WORKFLOW_INSIGHTS.md` |
 
 ## What Are Skills?
 

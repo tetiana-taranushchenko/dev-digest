@@ -15,9 +15,16 @@ import type {
   Repo,
   PrMeta,
   PrDetail,
-  SpecFile,
-  IndexStatus,
 } from "../types";
+import type {
+  ContextListing,
+  ContextIndexStatus,
+  ContextDocument,
+  SaveContextDocumentBody,
+  SaveContextDocumentResult,
+  CreateContextEntryBody,
+  CreateContextEntryResult,
+} from "@devdigest/shared";
 
 // ---- Settings (F1: GET/PUT /settings, POST /settings/test-connection) ----
 export function useSettings() {
@@ -141,11 +148,13 @@ export function usePullDetail(prId: string | number | null | undefined) {
   });
 }
 
-// ---- Project Context (A3 contract; safe to call once API exposes it) ----
+// ---- Project Context (GET /repos/:id/context, POST /repos/:id/context/reindex) ----
+/** Documents discovered under `specs/`/`docs/`/`insights/` plus index freshness
+ *  (`ContextListing` — files + index, T7/T8). */
 export function useContextFiles(repoId: string | null | undefined) {
   return useQuery({
     queryKey: ["context", repoId],
-    queryFn: () => api.get<SpecFile[]>(`/repos/${repoId}/context`),
+    queryFn: () => api.get<ContextListing>(`/repos/${repoId}/context`),
     enabled: !!repoId,
   });
 }
@@ -153,7 +162,82 @@ export function useContextFiles(repoId: string | null | undefined) {
 export function useReindexContext() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (repoId: string) => api.post<IndexStatus>(`/repos/${repoId}/context/reindex`),
+    mutationFn: (repoId: string) => api.post<ContextIndexStatus>(`/repos/${repoId}/context/reindex`),
     onSuccess: (_d, repoId) => qc.invalidateQueries({ queryKey: ["context", repoId] }),
+  });
+}
+
+// ---- Project Context document authoring
+// (GET/PUT /repos/:id/context/document, POST /repos/:id/context/entries,
+//  POST /repos/:id/context/upload — T8, `docs/plans/project-context-authoring.md`) ----
+
+/** A selected document's real content, fresh from the clone. Only fetches when
+ *  both `repoId` and `path` are set — never auto-fetch with no selection
+ *  (AC-3) and never fetch a body for the list ("bodies on demand only" NFR). */
+export function useContextDocument(repoId: string | null | undefined, path: string | null | undefined) {
+  return useQuery({
+    queryKey: ["context-doc", repoId, path],
+    queryFn: () =>
+      api.get<ContextDocument>(`/repos/${repoId}/context/document?path=${encodeURIComponent(path!)}`),
+    enabled: !!repoId && !!path,
+  });
+}
+
+interface SaveContextDocumentInput extends SaveContextDocumentBody {
+  repoId: string;
+}
+
+/** Save writes immediately (no confirm step, no autosave). A successful save
+ *  refreshes both the status line/list (AC-10) and this document's cached
+ *  metadata + content, without a page reload. */
+export function useSaveContextDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ repoId, ...body }: SaveContextDocumentInput) =>
+      api.put<SaveContextDocumentResult>(`/repos/${repoId}/context/document`, body),
+    onSuccess: (_data, { repoId, path }) => {
+      qc.invalidateQueries({ queryKey: ["context", repoId] });
+      qc.invalidateQueries({ queryKey: ["context-doc", repoId, path] });
+    },
+  });
+}
+
+interface CreateContextEntryInput extends CreateContextEntryBody {
+  repoId: string;
+}
+
+/** New file / new folder under the write root. Refreshes the list/status line
+ *  and the affected document's cache (AC-10, AC-12, AC-13). */
+export function useCreateContextEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ repoId, ...body }: CreateContextEntryInput) =>
+      api.post<CreateContextEntryResult>(`/repos/${repoId}/context/entries`, body),
+    onSuccess: (_data, { repoId, path }) => {
+      qc.invalidateQueries({ queryKey: ["context", repoId] });
+      qc.invalidateQueries({ queryKey: ["context-doc", repoId, path] });
+    },
+  });
+}
+
+interface UploadContextDocumentInput {
+  repoId: string;
+  file: File;
+}
+
+/** Toolbar file-picker upload (`.md` only, never drag-and-drop). Refreshes
+ *  the list/status line and the uploaded document's cache (AC-10, AC-15). */
+export function useUploadContextDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ repoId, file }: UploadContextDocumentInput) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return api.upload<CreateContextEntryResult>(`/repos/${repoId}/context/upload`, formData);
+    },
+    onSuccess: (result, { repoId }) => {
+      qc.invalidateQueries({ queryKey: ["context", repoId] });
+      qc.invalidateQueries({ queryKey: ["context-doc", repoId, result.path] });
+    },
   });
 }

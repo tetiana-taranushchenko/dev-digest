@@ -14,19 +14,48 @@ export function Markdown({ children }: { children?: string | null }) {
           strong: ({ children }) => (
             <strong style={{ fontWeight: 650, color: "var(--text-primary)" }}>{children}</strong>
           ),
-          code: ({ children }) => (
-            <code
-              className="mono"
+          code: ({ className, children }) => {
+            // Fenced code blocks (```lang or a multi-line body) render plain
+            // inside `pre`'s own box below — the inline "pill" style is only
+            // for a short inline `code` span, never a whole block.
+            const isBlock = className?.includes("language-") || String(children).includes("\n");
+            if (isBlock) {
+              return (
+                <code className="mono" style={{ fontSize: "0.85em", color: "var(--text-primary)" }}>
+                  {children}
+                </code>
+              );
+            }
+            return (
+              <code
+                className="mono"
+                style={{
+                  fontSize: "0.92em",
+                  padding: "1px 6px",
+                  borderRadius: 4,
+                  background: "var(--bg-hover)",
+                  color: "var(--accent-text)",
+                }}
+              >
+                {children}
+              </code>
+            );
+          },
+          pre: ({ children }) => (
+            <pre
               style={{
-                fontSize: "0.92em",
-                padding: "1px 6px",
-                borderRadius: 4,
-                background: "var(--bg-hover)",
-                color: "var(--accent-text)",
+                margin: "0 0 12px",
+                padding: "14px 16px",
+                borderRadius: 8,
+                background: "var(--code-bg)",
+                border: "1px solid var(--border)",
+                overflowX: "auto",
+                fontSize: 13,
+                lineHeight: 1.5,
               }}
             >
               {children}
-            </code>
+            </pre>
           ),
           a: ({ children, href }) => (
             <a href={href} style={{ color: "var(--accent-text)", textDecoration: "underline" }}>

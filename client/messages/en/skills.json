@@ -147,10 +147,15 @@
   "editor": {
     "tabs": {
       "config": "Config",
+      "context": "Context",
       "preview": "Preview",
       "stats": "Stats",
       "versions": "Versions"
     }
+  },
+  "context": {
+    "title": "Context",
+    "saveFailed": "Couldn't save context — try again."
   },
   "config": {
     "title": "Configuration",

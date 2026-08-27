@@ -22,3 +22,90 @@
     transform: translateY(0);
   }
 }
+
+/* Rendered-markdown typography for `Markdown` (vendor/ui/primitives/Markdown.tsx).
+   The component wraps its output in `.dd-md` but never had matching CSS —
+   headings/lists/tables/quotes/rules all fell back to unstyled default HTML.
+   Inline elements (p/strong/code/a) stay styled via the component's own
+   per-tag React overrides; this covers everything that isn't practical to
+   express that way (nested selectors, :first-child). */
+.dd-md h1,
+.dd-md h2,
+.dd-md h3,
+.dd-md h4 {
+  color: var(--text-primary);
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 26px 0 10px;
+}
+.dd-md h1:first-child,
+.dd-md h2:first-child,
+.dd-md h3:first-child,
+.dd-md h4:first-child {
+  margin-top: 0;
+}
+.dd-md h1 {
+  font-size: 22px;
+}
+.dd-md h2 {
+  font-size: 17px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.dd-md h3 {
+  font-size: 14.5px;
+}
+.dd-md h4 {
+  font-size: 13.5px;
+}
+
+.dd-md ul,
+.dd-md ol {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+.dd-md li {
+  margin: 0 0 6px;
+  line-height: 1.55;
+}
+.dd-md li > ul,
+.dd-md li > ol {
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+
+.dd-md blockquote {
+  margin: 0 0 12px;
+  padding: 2px 14px;
+  border-left: 3px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.dd-md hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 22px 0;
+}
+
+.dd-md table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+.dd-md th,
+.dd-md td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.dd-md th {
+  color: var(--text-primary);
+  font-weight: 650;
+  background: var(--bg-elevated);
+}
+
+.dd-md pre {
+  margin: 0 0 12px;
+}

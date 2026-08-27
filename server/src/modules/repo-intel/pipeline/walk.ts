@@ -48,15 +48,36 @@ export interface WalkResult {
   stats: WalkStats;
 }
 
+export interface WalkOptions {
+  /**
+   * File extensions to include (lowercase, with leading dot), e.g. `MARKDOWN_EXT`.
+   * Defaults to `SUPPORTED_EXT` — today's exact behaviour.
+   */
+  extensions?: readonly string[];
+  /**
+   * Optional predicate over the posix-style path relative to `root` (the same
+   * string that would land in `WalkResult.files`). Return `true` to keep the
+   * file. Applied in addition to the extension/size/excluded-dir filters —
+   * it never bypasses them. Defaults to accepting every candidate.
+   */
+  filter?: (relPath: string) => boolean;
+}
+
 /**
  * Recursively walk `root`, returning the file set to parse + a small stats
  * object the pipeline persists into `repo_index_state.stats`.
+ *
+ * `opts` is optional and defaults to today's exact behaviour (SUPPORTED_EXT,
+ * no extra predicate) so existing callers (`full.ts`, `incremental.ts`) are
+ * unaffected.
  */
-export async function walkClone(root: string): Promise<WalkResult> {
+export async function walkClone(root: string, opts?: WalkOptions): Promise<WalkResult> {
+  const extSet = opts?.extensions ? new Set(opts.extensions) : SUPPORTED_SET;
+  const filter = opts?.filter;
   const out: string[] = [];
   const stats: WalkStats = { totalCandidates: 0, skippedTooLarge: 0, bounded: 0 };
 
-  await walkDir(root, root, out, stats);
+  await walkDir(root, root, out, stats, extSet, filter);
 
   // Stable order: alphabetical relpath. Keeps "first N when bounded" reproducible
   // across runs (until T3 replaces it with rank-driven selection).
@@ -75,6 +96,8 @@ async function walkDir(
   dir: string,
   out: string[],
   stats: WalkStats,
+  extSet: ReadonlySet<string>,
+  filter: ((relPath: string) => boolean) | undefined,
 ): Promise<void> {
   let entries: Dirent[];
   try {
@@ -91,14 +114,14 @@ async function walkDir(
 
     if (entry.isDirectory()) {
       if (EXCLUDED_SET.has(name)) continue;
-      await walkDir(root, join(dir, name), out, stats);
+      await walkDir(root, join(dir, name), out, stats, extSet, filter);
       continue;
     }
 
     if (!entry.isFile()) continue;
 
     const ext = extname(name).toLowerCase();
-    if (!SUPPORTED_SET.has(ext)) continue;
+    if (!extSet.has(ext)) continue;
 
     stats.totalCandidates += 1;
 
@@ -117,6 +140,7 @@ async function walkDir(
     // Posix-style relative path so DB rows are platform-agnostic (matches the
     // `pr_files.path` convention).
     const rel = relative(root, full).split(sep).join('/');
+    if (filter && !filter(rel)) continue;
     out.push(rel);
   }
 }

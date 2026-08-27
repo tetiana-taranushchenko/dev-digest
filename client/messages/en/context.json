@@ -13,12 +13,86 @@
     "body": "Drop your PRDs, tech specs, and acceptance criteria under .devdigest/specs/. Every agent and the PR brief read them as grounding context."
   },
   "mode": {
-    "preview": "preview",
-    "edit": "edit"
+    "preview": "Preview",
+    "edit": "Edit"
   },
   "editor": {
     "loadError": "Couldn’t load spec",
     "save": "Save",
-    "saving": "Saving…"
+    "saving": "Saving…",
+    "discard": "Discard",
+    "unsaved": "Unsaved changes",
+    "saved": "Saved",
+    "saveFailed": "Couldn’t save: {message}",
+    "localOnlyWarning": "Saves live only in this local clone — they are not committed or pushed, and can be lost on re-index."
+  },
+  "toolbar": {
+    "newFile": "New file",
+    "newFolder": "New folder",
+    "upload": "Upload document",
+    "refresh": "Refresh"
+  },
+  "detail": {
+    "placeholder": "Select a document to preview or edit it.",
+    "path": "Path",
+    "usedBy": "Used by {count} agents",
+    "readOnlyReason": "This document is outside .devdigest/specs/, so it’s preview-only."
+  },
+  "conflict": {
+    "message": "This document changed on disk since you loaded it. Your copy is stale.",
+    "reload": "Reload the on-disk copy"
+  },
+  "create": {
+    "filePrompt": "New file name",
+    "folderPrompt": "New folder name",
+    "collision": "A file or folder with that name already exists.",
+    "invalidName": "That name isn’t valid. Use letters, numbers, dots, underscores, or hyphens."
+  },
+  "upload": {
+    "button": "Upload",
+    "invalidType": "Only .md files can be uploaded.",
+    "tooLarge": "File is too large to upload.",
+    "collision": "A file with that name already exists.",
+    "failed": "Upload failed: {message}"
+  },
+  "folderInvisibleNote": "An empty folder won’t appear in the list until it contains a document.",
+  "status": {
+    "documents": "{count} documents indexed",
+    "tokens": "{tokens} tokens",
+    "refreshed": "Refreshed {when}"
+  },
+  "reindexConfirm": {
+    "title": "Re-index this repo?",
+    "body": "Re-indexing discards any unsaved edits and can lose documents written since the last refresh — they are not committed or pushed anywhere.",
+    "confirm": "Re-index anyway"
+  },
+  "unsavedConfirm": {
+    "title": "Discard unsaved changes?",
+    "body": "You have unsaved edits. Leaving now will discard them.",
+    "confirm": "Discard and continue"
+  },
+  "picker": {
+    "attach": "Attach",
+    "attached": "Attached",
+    "preview": "Preview",
+    "dragHandle": "Drag to reorder",
+    "attachedHeading": "Attached documents",
+    "unattachedHeading": "Available documents",
+    "orderHint": "Order matters — documents are injected in this order. Drag to reorder.",
+    "noneAttached": "No documents attached yet.",
+    "noDocuments": "No documents available to attach.",
+    "unresolved": "Missing",
+    "usedBy": "Used by {count} agents",
+    "tokenCount": "{tokens} tok",
+    "totalTokens": "{tokens} tokens total",
+    "combinedTotalTokens": "{tokens} tokens total for this agent + linked skills",
+    "overCapLabel": "Over budget",
+    "overCapHint": "Over the {cap}-token soft budget — attaching still works, but review cost will be higher.",
+    "mapReduceNote": "This agent runs map-reduce — attached context is re-sent for every changed file, multiplying its token cost.",
+    "source": {
+      "docs": "Docs",
+      "spec": "Spec",
+      "insights": "Insights"
+    }
   }
 }
