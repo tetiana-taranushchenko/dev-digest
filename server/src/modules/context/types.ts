@@ -79,6 +79,26 @@ export interface ReadBodiesResult {
 }
 
 /**
+ * A path that resolved to filesystem metadata, without its body ever being
+ * read (S-1, `docs/plans/pr-brief.md` T5a) — the PR Brief state key's
+ * `mtimeMs + size` document-freshness component (S-3) is built from this.
+ */
+export interface StatBodiesResolvedDoc {
+  /** Normalized repo-relative path (as returned by `safeRepoPath`). */
+  path: string;
+  mtimeMs: number;
+  size: number;
+}
+
+export interface StatBodiesResult {
+  /** Successfully stat'd documents — order is not significant to callers. */
+  resolved: StatBodiesResolvedDoc[];
+  /** Entries that could not be resolved — reported, never thrown, same
+   *  reasons as `readBodies` (AC-14's shape, reused for consistency). */
+  skipped: SkippedContextDoc[];
+}
+
+/**
  * The application-ring facade for Project Context. `server/src/platform/
  * container.ts` is the only file that both imports this interface and the
  * concrete `ContextDocsService` together (composition root).
@@ -110,6 +130,18 @@ export interface ContextDocsFacade {
    * skipped and reported, never thrown (AC-14).
    */
   readBodies(clonePath: string, paths: string[]): Promise<ReadBodiesResult>;
+
+  /**
+   * Stat every path fresh from `clonePath` — no body ever read (S-1,
+   * `docs/plans/pr-brief.md` T5a). Additive, read-only: it exists purely so
+   * the PR Brief's state key can detect a document save/out-of-band edit via
+   * `mtimeMs`/`size` without paying `readBodies`'s cost on the cheap `GET`
+   * path (S-3). Reuses `readBodies`/`readOne`'s containment sequence
+   * (`safeRepoPath` -> `resolve` -> `isWithin` -> `realpath` -> `isWithin`)
+   * and the same skip reasons; an unreadable/out-of-root/oversized-for-stat
+   * path is skipped and reported, never thrown.
+   */
+  statBodies(clonePath: string, paths: string[]): Promise<StatBodiesResult>;
 
   // ---- write surface (T4, `docs/plans/project-context-authoring.md`) --------
   // Every method below resolves the repo via `RepoRepository` and throws a

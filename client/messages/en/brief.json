@@ -15,5 +15,43 @@
     "blame": "blame",
     "noHistory": "No history available for this line.",
     "noCommits": "No commits found for this line."
+  },
+  "title": "PR Brief",
+  "riskLevel": {
+    "low": "Low risk",
+    "medium": "Medium risk",
+    "high": "High risk",
+    "aria": "Risk level: {level}"
+  },
+  "empty": {
+    "title": "No brief generated yet",
+    "body": "Generate a one-shot summary of what this PR does, why, and where to focus your review."
+  },
+  "generate": {
+    "cta": "Generate brief"
+  },
+  "regenerate": {
+    "cta": "Regenerate",
+    "ariaLabel": "Regenerate this PR's brief"
+  },
+  "usage": {
+    "aria": "Generation cost and token usage"
+  },
+  "error": {
+    "body": "Couldn't generate this PR's brief."
+  },
+  "riskAreas": {
+    "title": "Risk Areas",
+    "severity": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    }
+  },
+  "reviewFocus": {
+    "title": "Review Focus",
+    "empty": "No specific review focus suggested.",
+    "itemAriaLabel": "{file}, line {line}",
+    "notInDiff": "File not in this PR's diff"
   }
 }

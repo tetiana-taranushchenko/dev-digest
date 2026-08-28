@@ -23,6 +23,7 @@ import type {
   CreateContextEntryInput,
   ReadBodiesResult,
   SaveContextDocumentInput,
+  StatBodiesResult,
   UploadContextDocumentInput,
 } from './types.js';
 import {
@@ -190,6 +191,50 @@ export class ContextDocsService implements ContextDocsFacade {
       const doc = await this.readOne(root, rawPath);
       if (doc.ok) resolved.push({ path: doc.path, body: doc.body });
       else skipped.push({ path: rawPath, reason: doc.reason });
+    }
+    return { resolved, skipped };
+  }
+
+  /**
+   * (d2) Stat every path fresh from `clonePath` — never `readFile` (S-1,
+   * `docs/plans/pr-brief.md` T5a). Additive and read-only: it feeds the PR
+   * Brief's state key `mtimeMs + size` document-freshness component (S-3)
+   * without paying `readBodies`'s body-read cost. Reuses `readOne`'s
+   * containment prologue (`containDocument`, below) and stops at `stat()`.
+   */
+  async statBodies(clonePath: string, paths: string[]): Promise<StatBodiesResult> {
+    const resolved: StatBodiesResult['resolved'] = [];
+    const skipped: StatBodiesResult['skipped'] = [];
+    if (paths.length === 0) return { resolved, skipped };
+
+    let root: string;
+    try {
+      root = await realpath(clonePath);
+    } catch {
+      for (const path of paths) skipped.push({ path, reason: 'not_found' });
+      return { resolved, skipped };
+    }
+
+    for (const rawPath of paths) {
+      const contained = await this.containDocument(root, rawPath);
+      if (!contained.ok) {
+        skipped.push({ path: rawPath, reason: contained.reason });
+        continue;
+      }
+
+      let fileStat;
+      try {
+        fileStat = await stat(contained.actual);
+      } catch {
+        skipped.push({ path: rawPath, reason: 'not_found' });
+        continue;
+      }
+      if (!fileStat.isFile()) {
+        skipped.push({ path: rawPath, reason: 'not_a_file' });
+        continue;
+      }
+
+      resolved.push({ path: contained.safePath, mtimeMs: fileStat.mtimeMs, size: fileStat.size });
     }
     return { resolved, skipped };
   }
@@ -466,12 +511,42 @@ export class ContextDocsService implements ContextDocsFacade {
    * Containment-checked single-file read shared by `listDocuments` (paths
    * already trusted — sourced from `walkClone`, which never follows
    * symlinks) and `readBodies` (paths are untrusted — persisted by a prior
-   * `PUT .../context`). Every candidate is resolved with `resolve()` against
-   * `root` and verified with `isWithin` both before and after `realpath`, so
-   * a symlink cannot escape the repo root even if the literal path looked
-   * safe — never a bare `join()`.
+   * `PUT .../context`). Delegates the path-containment prologue to
+   * `containDocument` (also shared with `statBodies`, S-1) and, unlike
+   * `statBodies`, continues on into the size check and an actual `readFile`.
    */
   private async readOne(root: string, rawPath: string): Promise<ReadOneResult> {
+    const contained = await this.containDocument(root, rawPath);
+    if (!contained.ok) return contained;
+
+    let fileStat;
+    try {
+      fileStat = await stat(contained.actual);
+    } catch {
+      return { ok: false, reason: 'not_found' };
+    }
+    if (!fileStat.isFile()) return { ok: false, reason: 'not_a_file' };
+    if (fileStat.size > MAX_FILE_SIZE) return { ok: false, reason: 'too_large' };
+
+    const body = await readFile(contained.actual, 'utf8').catch(() => null);
+    if (body == null || body.includes('\0')) return { ok: false, reason: 'unreadable' };
+
+    return { ok: true, path: contained.safePath, body, size: fileStat.size, updatedAt: fileStat.mtime };
+  }
+
+  /**
+   * The shared containment prologue (`safeRepoPath` -> `resolve` ->
+   * `isWithin` -> `realpath` -> `isWithin`) both `readOne` (which continues
+   * into `stat`/size-check/`readFile`) and `statBodies` (S-1, which stops at
+   * `stat()` and never calls `readFile`) build on. Every candidate is
+   * resolved with `resolve()` against `root` and verified with `isWithin`
+   * both before and after `realpath`, so a symlink cannot escape the repo
+   * root even if the literal path looked safe — never a bare `join()`.
+   * Extracted here rather than duplicated because it changes no existing
+   * caller's observable behaviour: `readOne`'s reasons/ordering are
+   * unchanged, only the containment steps moved into a named helper.
+   */
+  private async containDocument(root: string, rawPath: string): Promise<ContainDocumentResult> {
     const safePath = safeRepoPath(rawPath);
     if (!safePath) return { ok: false, reason: 'unsafe_path' };
 
@@ -486,24 +561,16 @@ export class ContextDocsService implements ContextDocsFacade {
     }
     if (!isWithin(root, actual)) return { ok: false, reason: 'outside_root' };
 
-    let fileStat;
-    try {
-      fileStat = await stat(actual);
-    } catch {
-      return { ok: false, reason: 'not_found' };
-    }
-    if (!fileStat.isFile()) return { ok: false, reason: 'not_a_file' };
-    if (fileStat.size > MAX_FILE_SIZE) return { ok: false, reason: 'too_large' };
-
-    const body = await readFile(actual, 'utf8').catch(() => null);
-    if (body == null || body.includes('\0')) return { ok: false, reason: 'unreadable' };
-
-    return { ok: true, path: safePath, body, size: fileStat.size, updatedAt: fileStat.mtime };
+    return { ok: true, safePath, actual };
   }
 }
 
 type ReadOneResult =
   | { ok: true; path: string; body: string; size: number; updatedAt: Date }
+  | { ok: false; reason: ContextDocSkipReason };
+
+type ContainDocumentResult =
+  | { ok: true; safePath: string; actual: string }
   | { ok: false; reason: ContextDocSkipReason };
 
 /**

@@ -3,7 +3,7 @@ name: implementation-planner
 description: >-
   Use proactively when a feature, change, or bug fix needs a structured Development Plan before any code is written. Read-only architect that reviews the requirements you already have (never authors a specification), asks clarifying questions when something is unclear or missing, offers recommendations on a better approach, and confirms with you whether the plan should target parallel multi-agent implementer execution or a single sequential implementer pass. Then maps the request onto DevDigest's modules (server/client/reviewer-core/mcp-server/e2e), consults onion-architecture layering, existing INSIGHTS.md notes, and available project skills, and writes a phased, file-specific Development Plan with per-task skill assignments, owned paths (for safe parallel implementer execution), a task dependency graph, and measurable acceptance criteria. Writes only under docs/plans/**; never writes a specification and never touches product code. Examples: "Plan adding a PR archive endpoint with a UI toggle", "Plan splitting the review pipeline to support a second LLM provider".
 tools: Read, Glob, Grep, Bash, Agent, Write
-model: opus
+model: sonnet
 skills:
   - onion-architecture
   - fastify-best-practices
