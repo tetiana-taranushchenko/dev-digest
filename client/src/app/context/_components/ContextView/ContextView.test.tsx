@@ -29,6 +29,16 @@ vi.mock("../../../../lib/hooks/core", () => ({
     refetch: vi.fn(),
   }),
   useReindexContext: () => ({ mutate, isPending: false }),
+  useContextDocument: () => ({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+  useSaveContextDocument: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateContextEntry: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUploadContextDocument: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 import { ContextView } from "./ContextView";
@@ -89,10 +99,15 @@ describe("ContextView — document listing (AC-1) and reindex (AC-4)", () => {
     expect(screen.getByText("Docs")).toBeInTheDocument();
     expect(screen.getByText("340 tok")).toBeInTheDocument();
     expect(screen.getByText("Used by 2 agents")).toBeInTheDocument();
-    expect(screen.getByText(/Index status: done/)).toBeInTheDocument();
+    expect(screen.getByText("1 documents indexed")).toBeInTheDocument();
+    expect(screen.getByText(/340 tokens/)).toBeInTheDocument();
+    expect(screen.queryByText(/chunks/i)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /re-index/i }));
-    expect(mutate).toHaveBeenCalledWith("repo-1");
+    fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
+    expect(mutate).toHaveBeenCalledWith(
+      "repo-1",
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
   });
 });
 

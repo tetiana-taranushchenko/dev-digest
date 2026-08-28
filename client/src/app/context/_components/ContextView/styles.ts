@@ -113,4 +113,13 @@ export const s = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
+  rowMetadata: {
+    display: "flex",
+    gap: 6,
+    marginTop: 3,
+    color: "var(--text-muted)",
+    fontSize: 10,
+    lineHeight: 1.3,
+    flexWrap: "wrap",
+  },
 } satisfies Record<string, React.CSSProperties>;
