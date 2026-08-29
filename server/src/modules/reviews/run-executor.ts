@@ -14,6 +14,7 @@ import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 import { IntentService } from '../intent/service.js';
 import { logPromptAssembly } from './prompt-logging.js';
+import { scanForInjectionRisk } from '../_shared/injection-scan.js';
 
 /**
  * Map the persisted `PrIntentRecord` (server-side, includes provider/model/
@@ -260,6 +261,40 @@ export class ReviewRunExecutor {
         runLog.info(`Skills: ${skillBodies.length} enabled skill(s) attached`);
       }
 
+      // Project context — attached specs (REQ-4/REQ-5). resolveForAgent()
+      // returns the ordered, deduped (first-occurrence-wins) path list —
+      // agent-direct attachments, then each enabled linked skill's — and
+      // readBodies() reads them fresh from the clone (no caching, AC-12),
+      // safety-checked per path. An unreadable/out-of-root/oversized path is
+      // skipped and reported, never thrown (AC-14); the run still completes.
+      const specPaths = await this.container.contextDocs.resolveForAgent(agent.id);
+      const { resolved: specDocs, skipped: skippedSpecs } = specPaths.length
+        ? await this.container.contextDocs.readBodies(repo.clonePath ?? '', specPaths)
+        : { resolved: [], skipped: [] };
+      for (const doc of skippedSpecs) {
+        runLog.info(`Project context: skipped unreadable document "${doc.path}" (${doc.reason})`);
+      }
+      const specBodies = specDocs.map((d) => d.body);
+      const specsRead = specDocs.map((d) => d.path);
+      // Defense in depth at the last responsible moment: context files are
+      // read fresh for every run, so scan the exact bytes that will reach the
+      // model (an attach-time-only scan would become stale after a file edit).
+      // A heuristic hit is deliberately a warning, not a block: legitimate
+      // security specs may quote attack phrases. The actual trust boundary is
+      // reviewer-core, which wraps every body in <untrusted> and appends its
+      // INJECTION_GUARD. Never log the document body here.
+      for (const doc of specDocs) {
+        const scan = scanForInjectionRisk(doc.body);
+        if (scan.risky) {
+          runLog.info(
+            `SECURITY WARNING: Project context document "${doc.path}" contains a possible prompt-injection pattern (${scan.reason}); treating it as untrusted data`,
+          );
+        }
+      }
+      if (specBodies.length > 0) {
+        runLog.info(`Project context: ${specBodies.length} document(s) attached`);
+      }
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -281,6 +316,12 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // Project context — attached specs (resolved above). Omitted (not
+        // `specs: []`) when the agent has none attached / all attachments
+        // were unreadable, so a zero-document agent's prompt stays
+        // byte-identical to today (AC-19). assemblePrompt omits the
+        // `## Project context` section when `specs` is absent/empty.
+        ...(specBodies.length ? { specs: specBodies } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -365,7 +406,10 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        // Every path actually injected into this run's prompt (AC-18) — the
+        // subset of `specPaths` that `readBodies` resolved, in the same
+        // order they were passed to `reviewPullRequest`'s `specs`.
+        specs_read: specsRead,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),

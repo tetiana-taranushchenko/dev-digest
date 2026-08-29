@@ -94,19 +94,21 @@ export class OpenAIProvider implements LLMProvider {
     let lastRaw = '';
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-      const res = await withRetry(() =>
-        withTimeout(
-          this.client.chat.completions.create({
-            model: req.model,
-            messages,
-            ...tuningParams(req.model, req.temperature, req.maxTokens),
-            response_format: {
-              type: 'json_schema',
-              json_schema: { name: req.schemaName, schema: jsonSchema.schema, strict: true },
-            },
-          }),
-          req.timeoutMs ?? DEFAULT_TIMEOUT,
-        ),
+      const res = await withRetry(
+        () =>
+          withTimeout(
+            this.client.chat.completions.create({
+              model: req.model,
+              messages,
+              ...tuningParams(req.model, req.temperature, req.maxTokens),
+              response_format: {
+                type: 'json_schema',
+                json_schema: { name: req.schemaName, schema: jsonSchema.schema, strict: true },
+              },
+            }),
+            req.timeoutMs ?? DEFAULT_TIMEOUT,
+          ),
+        { retries: req.transportRetries },
       );
       lastRaw = res.choices?.[0]?.message?.content ?? '';
       tokensIn += res.usage?.prompt_tokens ?? 0;

@@ -1,13 +1,21 @@
 import type { Container } from '../../platform/container.js';
-import type { Skill, SkillSource, SkillType } from '@devdigest/shared';
+import type {
+  AttachedContextDoc,
+  ContextSource,
+  Skill,
+  SkillSource,
+  SkillType,
+} from '@devdigest/shared';
 import { ValidationError } from '../../platform/errors.js';
 import { UNTRUSTED_SOURCES } from './constants.js';
 import { SkillsRepository } from './repository.js';
 import { changeSummary, toSkillDto } from './helpers.js';
-import { scanForInjectionRisk } from './injection-scan.js';
+import { scanForInjectionRisk } from '../_shared/injection-scan.js';
 import type { SkillVersionDto } from './helpers.js';
 import { SkillStatsRepository, thirtyDaysAgo } from './stats.repo.js';
 import type { CompactSkillStats, SkillStats } from './contracts.js';
+import { RepoRepository } from '../repos/repository.js';
+import { CONTEXT_FOLDERS } from '../repo-intel/constants.js';
 
 /**
  * A1 — skills service. Business logic for the Skills Lab: CRUD, body-version
@@ -51,10 +59,12 @@ function isUntrustedSource(source: SkillSource): boolean {
 export class SkillsService {
   private repo: SkillsRepository;
   private statsRepo: SkillStatsRepository;
+  private repos: RepoRepository;
 
-  constructor(container: Container) {
+  constructor(private container: Container) {
     this.repo = new SkillsRepository(container.db);
     this.statsRepo = new SkillStatsRepository(container.db);
+    this.repos = new RepoRepository(container.db);
   }
 
   async list(workspaceId: string): Promise<Skill[]> {
@@ -268,4 +278,86 @@ export class SkillsService {
     const rows = await this.repo.agentsForSkill(workspaceId, id);
     return rows.map((r) => ({ agent_id: r.agentId, agent_name: r.agentName, order: r.order }));
   }
+
+  /**
+   * Attached context documents for a skill (T10, `docs/plans/project-context.md`,
+   * AC-7/AC-9) — mirrors `AgentsService.agentContextDocs` (T9). Ordered exactly
+   * as stored (`skill_context_docs."order"` ASC). Each entry is resolved fresh
+   * against the first connected repo in the workspace that has a clone on disk
+   * — a skill isn't bound to one repo, so this mirrors the app's single-
+   * connected-repo usage pattern rather than requiring a repo id on this route.
+   * A path that no longer resolves (clone missing entirely, or the file itself
+   * deleted/moved) is reported with `resolved: false` rather than dropped from
+   * the list (AC-9).
+   */
+  async skillContextDocs(workspaceId: string, skillId: string): Promise<AttachedContextDoc[]> {
+    const paths = await this.container.contextDocs.listSkillPaths(skillId);
+    if (paths.length === 0) return [];
+
+    const repos = await this.repos.list(workspaceId);
+    const clonedRepo = repos.find((r) => r.clonePath);
+    if (!clonedRepo?.clonePath) {
+      return paths.map((path) => ({
+        path,
+        source: classifyContextSource(path),
+        tokens: null,
+        resolved: false,
+      }));
+    }
+
+    const { resolved } = await this.container.contextDocs.readBodies(clonedRepo.clonePath, paths);
+    const bodyByPath = new Map(resolved.map((doc) => [doc.path, doc.body]));
+    return paths.map((path) => {
+      const body = bodyByPath.get(path);
+      return {
+        path,
+        source: classifyContextSource(path),
+        tokens: body !== undefined ? this.container.tokenizer.count(body) : null,
+        resolved: body !== undefined,
+      };
+    });
+  }
+
+  /**
+   * Replace the skill's attached-document set, in order — paths only, never
+   * bodies (AC-7, AC-8). `PUT`, not `POST` — same deliberate full-resource-
+   * replace choice as `AgentsService.setAgentContextDocs` (T9), per spec.
+   */
+  async setSkillContextDocs(
+    workspaceId: string,
+    skillId: string,
+    paths: string[],
+  ): Promise<AttachedContextDoc[] | undefined> {
+    const skill = await this.repo.getById(workspaceId, skillId);
+    if (!skill) return undefined;
+    await this.container.contextDocs.setSkillPaths(skillId, paths);
+    return this.skillContextDocs(workspaceId, skillId);
+  }
+}
+
+const CONTEXT_FOLDER_TO_SOURCE: Record<(typeof CONTEXT_FOLDERS)[number], ContextSource> = {
+  specs: 'spec',
+  docs: 'docs',
+  insights: 'insights',
+};
+
+/**
+ * Classify an attached path's `source` from its top-level folder, mirroring
+ * `context/service.ts`'s `classifyFolder` + `FOLDER_TO_SOURCE` (not reused
+ * directly — that function is unexported and `context/service.ts` isn't an
+ * owned path for this task). Duplicated from `AgentsService`'s copy
+ * (`agents/service.ts`) for the same reason: `agents/service.ts` isn't an
+ * owned path for this task either. `.devdigest/specs/` counts as an instance
+ * of `specs/`, same as document discovery. Classification is purely path-text
+ * based (no clone read needed) so it stays correct even for an unresolved
+ * (deleted/moved) attachment; an unrecognised shape defensively falls back to
+ * `docs` since `AttachedContextDoc.source` isn't nullable.
+ */
+function classifyContextSource(relPath: string): ContextSource {
+  const [first, second] = relPath.split('/');
+  if (first === '.devdigest' && second === 'specs') return 'spec';
+  if (first && (CONTEXT_FOLDERS as readonly string[]).includes(first)) {
+    return CONTEXT_FOLDER_TO_SOURCE[first as (typeof CONTEXT_FOLDERS)[number]];
+  }
+  return 'docs';
 }

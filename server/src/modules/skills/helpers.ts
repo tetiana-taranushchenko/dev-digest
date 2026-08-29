@@ -1,6 +1,6 @@
 import type { Skill, SkillSource, SkillType } from '@devdigest/shared';
 import type { SkillRow } from '../../db/rows.js';
-import { scanForInjectionRisk } from './injection-scan.js';
+import { scanForInjectionRisk } from '../_shared/injection-scan.js';
 
 /**
  * Pure helpers for the skills module — DB row ⇄ DTO mapping and the

@@ -1,6 +1,7 @@
 ---
 name: researcher
-description: Use this agent to research a specific question by searching this repository (code, docs, specs, configs) and/or external sources (web pages, library docs, APIs), and to produce a structured findings report with evidence, references, and explicit gaps. Read-only — do NOT use it for implementation, refactoring, or any file edits. If the research question is vague or missing, the agent asks clarifying questions before starting instead of guessing. Examples: "find where JWT refresh tokens are validated in server/", "look up the latest Fastify v5 breaking changes relevant to our upgrade", "check whether reviewer-core already has a rate-limiter utility before I write one".
+description: >-
+  Use this agent to research a specific question by searching this repository (code, docs, specs, configs) and/or external sources (web pages, library docs, APIs), and to produce a structured findings report with evidence, references, and explicit gaps. Read-only — do NOT use it for implementation, refactoring, or any file edits. If the research question is vague or missing, the agent asks clarifying questions before starting instead of guessing. Examples: "find where JWT refresh tokens are validated in server/", "look up the latest Fastify v5 breaking changes relevant to our upgrade", "check whether reviewer-core already has a rate-limiter utility before I write one".
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch
 model: sonnet
 ---

@@ -161,6 +161,14 @@ export const AgentManifest = z.object({
     .array(z.string())
     .nullish()
     .transform((v) => v ?? []),
+  // Repo-relative paths to attached Project Context documents (AC-21). Same
+  // missing-key/explicit-null tolerance as `skills` above — normalize both to
+  // an empty array. No call-site resolves this yet in this repo; see
+  // `server/src/modules/context/manifest.ts` (T5) for the pure resolver.
+  context: z
+    .array(z.string())
+    .nullish()
+    .transform((v) => v ?? []),
   strategy: z.enum(['auto', 'single-pass', 'map-reduce']).default('auto'),
   // CI gate policy (see CiFailOn) — when the posted review should BLOCK
   // (REQUEST_CHANGES + fail the check) vs just comment. Default: block on critical.

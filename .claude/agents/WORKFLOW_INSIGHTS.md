@@ -1,0 +1,38 @@
+# WORKFLOW_INSIGHTS — this repo's Claude Code subagent tooling
+
+Retrospectives on how the custom subagents in `.claude/agents/*.md` actually
+performed when chained together in a session — not about the DevDigest
+product's own code (see each package's `INSIGHTS.md` for that). Written by
+the [`workflow-retro`](../skills/workflow-retro/SKILL.md) skill, manually,
+via `/workflow-retro`. This file keeps the detailed evidence and narrative;
+compact cross-run metrics live in
+[`docs/retros/ledger.md`](../../docs/retros/ledger.md).
+
+## Recurring Patterns
+
+None yet — only one retrospective recorded so far; this section fills in once
+a friction point, duplication pattern, or recommendation repeats across ≥2
+dated entries below.
+
+## Retrospectives
+
+### 2026-08-26 — Project Context spec: write (spec-creator → 2×researcher, parallel) → verify citations (fork, crashed) → manual verify → resolve Q1–Q12 → build this skill
+
+**Run:** spec-creator (→ 2×researcher, parallel, nested) → fork (crashed) · **4 agents** · data: real (jsonl, via `jq` — see correction note below)
+
+| agent | role | depth | in | out | cache-read | hit% | tools | span | cost |
+|---|---|---|---|---|---|---|---|---|---|
+| `ae44dbd7` | spec-creator (opus-5) | 1 | 196 | 31,014 | 8,760,101 | 95.0% | 58 | 573.1s | $8.03 |
+| `a09dfc8c` | └ researcher (sonnet-5) | 2 | 116 | 13,458 | 2,218,723 | 93.3% | 39 | 134.0s | $0.98 |
+| `a8e5b917` | └ researcher (sonnet-5) | 2 | 138 | 14,392 | 3,388,550 | 93.7% | 49 | 151.4s | $1.39 |
+| `abbbffaf` | fork/verify (sonnet-5) | 1 | 2 | 4,746 | 151,340 | 91.5% | 0 | 2.6s | $0.11 |
+
+**Totals:** in 452 · out 63,610 · cache-read 14.5M · blended hit 94.4% · tools 146 · wall 13.0min (incl. ~3.5min human back-and-forth gap between spec-creator's crash and the fork launch) · critical path 9.6min (spec-creator span + fork span; researchers ran nested/parallel inside spec-creator's own span, so they don't add to it) · parallelism 1.50x · **cost $10.51**
+**Launch order:** spec-creator (22:56:37) → ~10-40s in, spawns 2 researchers in parallel (22:57:09, 22:57:19) → researchers finish ~22:59:33/:41, spec-creator keeps working alone until it crashes on a `server_error` at 23:06:10 (`Write` had already landed) → ~3.5min gap of human Q&A/course-correction, nothing running → fork launched 23:09:36, crashes on `rate_limit` at 23:09:38 having done nothing.
+**Correction to this entry's first draft:** the original version of this entry said tokens were "not tracked" because the session's own usage-limit reset made the in-context `total_tokens` reminder useless as a before/after diff — true, but the conclusion drawn from it was wrong. Real per-agent data was available the whole time: every subagent's full transcript lives at `~/.claude/projects/<project>/<session>/subagents/agent-<id>.jsonl`, with a companion `.meta.json` giving `agentType`/`parentAgentId`/`spawnDepth`. `jq`-extracting `.message.usage` per turn (never `Read`-ing the transcript's prose) gives exact `input_tokens`/`output_tokens`/`cache_creation_input_tokens`/`cache_read_input_tokens`, `tool_use` names, and first/last timestamps — the table above. This session's own design of Step 2 (written earlier the same day) assumed no per-agent breakdown existed outside the `Workflow` tool; that assumption was never actually checked against what's on disk. The skill has been corrected (see its own file) — this is the clearest single lesson from this retrospective.
+**Worked well:** spec-creator's grounding was excellent — manually spot-checking all ~35 of its `file:line` citations against the actual code (not the design mockup) found every one accurate, several to the exact line (e.g. `client/src/lib/hooks/core.ts:144-159` really does already have unwired `useContextFiles`/`useReindexContext` hooks; `client/messages/en/runs.json:50` really does say the stale label `"Project context (dynamic)"`). It also preferred the real current i18n copy over the design mockup's copy where the two disagreed, raised 12 well-scoped `[NEEDS CLARIFICATION]` questions instead of guessing, and correctly fanned its 2 internal researchers out in parallel (`parallelism` 1.50x for the whole stretch) rather than reading sequentially. Cache reuse was strong across the board (91–95% hit rate on every agent), which is most of why the $10.51 total stayed as low as it did on a ~14.5M-token-processed run.
+**Friction:** the fork sent to verify citations crashed 2.6s after launch, before checking a single one ($0.11 spent for zero output), so the orchestrator redid the entire verification pass inline via ~15 sequential `Read`/`Bash` calls. Separately, the orchestrator's own first suggestion for this skill's log location (`docs/agent-prompts/WORKFLOW_INSIGHTS.md`) was a category error — that folder is DevDigest's *product* reviewer-agent prompts, not this repo's own Claude Code tooling — caught only after the user had already approved it via `AskUserQuestion`, before any file was written. And the biggest one: this retro's own first draft under-used data that was sitting right there on disk (see the correction note above) — a friction point in the *retro tool itself*, not just the workflow it was retro'ing.
+**Duplicated:** not genuine double-work in the sense of two agents redoing the same task (the fork produced nothing before failing) — but the citation-verification task ran end-to-end twice: once as a subagent attempt with zero output, once inline by the orchestrator. The two internal researchers, now checked via their `.meta.json` descriptions ("Research agents and skills modeling" vs. "Research prompt assembly pipeline"), covered genuinely distinct ground — no overlap between them.
+**Missed / gaps:** none observed in the delivered spec after verification; the process-level gap was "no fallback for a verification subagent hitting a quota wall," and — per the correction note — this retro tool's own first pass missed that real cost data was available at all.
+**Human interventions:** after the spec-creator crash notification, before any diagnosis was reported, the user asked "чи точно ти правильно все виправив перевір мені кажется не то" then immediately added, mid-turn, "відміняю це не треба робити" — an explicit stop-and-just-report-state signal, distinct from her general no-Bash-for-me preference. Once she had that state, she reversed course to "перевір зараз ... при потребі допрацюй" — asking for exactly the check the crashed fork was meant to do, this time inline. Mid-way through building this very skill, she sent an unprompted reminder — "Впевнись, що цей workflow retro не запускається автоматично... поки що" — reinforcing a decision already locked in via `AskUserQuestion`; this tracks with an existing memory (`feedback_no_auto_insights`) recording a prior reversal on an auto-triggered insights hook, so unprompted reassurance-seeking about auto-triggering looks like a recurring concern for her, not a one-off. After this entry's first draft, she asked for exactly this kind of real, quantified analysis (screenshot of another tool's output as the reference shape) and had it added to the skill — a direct, concrete correction of the skill's own design, landed the same day it was written.
+**Next time:** when a review/verification subagent's only job is to re-check things the orchestrator can already see in its own context, do that pass inline first and reserve a subagent for genuinely parallel or context-heavy work. And for this skill specifically: always run the real `jq`-based extraction (Step 1/2) before writing any entry — never settle for an in-context approximation without first checking whether the actual transcript data is sitting on disk, which — after this correction — it always is.

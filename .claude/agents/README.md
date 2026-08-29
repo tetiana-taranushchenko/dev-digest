@@ -5,12 +5,30 @@ describes *what each agent is and how they fit together* — for the actual
 rules, read the agent's own `.md` file; nothing here should be treated as a
 substitute for it.
 
-Pipeline: **researcher** (ad hoc fact-finding) → **planner** (request →
-Development Plan file) → **implementer** (executes one task from that plan) →
-**test-writer** (tests for what was built) → **architecture-reviewer** /
-**plan-verifier** (independent read-only checks) → **doc-writer**
-(documentation). `planner` and `implementer` may delegate a narrow lookup back
-to `researcher`; the read-only agents may not delegate at all.
+Pipeline: **researcher** (ad hoc fact-finding) → **spec-creator** (request +
+designs → approved feature spec) → **implementation-planner** (maps source
+AC-IDs to implementation tasks → Development Plan file) →
+**implementer** (executes one task from that plan) → **architecture-reviewer**
+→ **plan-verifier** (final gate) → **doc-writer** (documentation).
+`spec-creator`, `implementation-planner`, and `implementer` may delegate a
+narrow lookup back to `researcher`; the read-only agents may not delegate at
+all. `spec-creator` is a required precondition for `implementation-planner`:
+the planner never turns a raw request into a plan and never resolves product
+questions. A missing, unapproved, or unresolved spec is returned to
+`spec-creator` before planning begins.
+
+**Two invocation halves.** `spec-creator` and `implementation-planner` are
+always invoked directly by the user (never chained automatically) — they're
+the planning half, done once per feature, before any code exists. Everything
+from `implementer` onward is the execution half, and is automated end-to-end
+by `.claude/skills/implement-plan/SKILL.md`: `/implement-plan
+plan:docs/plans/<slug>.md [mode:...] [max-fix:...]` runs implementer(s) per
+phase, then `architecture-reviewer` and `plan-verifier` in parallel, then a
+bounded iterative fix loop (`max-fix` rounds, default 3) that re-checks only
+what previously failed, then `doc-writer` once the verdict is `COMPLETE`.
+**`test-writer` is currently excluded from that automated flow** (a
+deliberate cost decision — see the skill file) — invoke it by hand when a
+task's Verification genuinely names a new test.
 
 > New or edited files here aren't picked up by a running session — restart
 > Claude Code before an agent added or changed in this folder becomes a
@@ -40,8 +58,8 @@ to `researcher`; the read-only agents may not delegate at all.
    `Agent` tool can spawn `implementer`, which has `Write`/`Edit` — laundering a
    write through a subagent and defeating the allowlist.
    `architecture-reviewer` and `plan-verifier` therefore have no `Agent` tool
-   at all. (`planner` keeps `Agent` deliberately: it needs `researcher`, and it
-   already holds `Write`.)
+   at all. (`implementation-planner` keeps `Agent` deliberately: it needs
+   `researcher`, and it already holds `Write`.)
 5. **Enforcement limits, stated honestly.** The `tools:` field scopes by tool
    *name* only — it has no path or glob notion. Path-scoped rules do exist as
    `permissions.allow`/`permissions.deny` entries in `.claude/settings.json`
@@ -59,11 +77,12 @@ to `researcher`; the read-only agents may not delegate at all.
 | Agent | Responsibility | Model | Tools | Preloaded skills |
 |---|---|---|---|---|
 | [`researcher`](researcher.md) | Answers one specific question by searching the repo and/or the web; never edits anything | sonnet | `Read, Grep, Glob, Bash, WebFetch, WebSearch` | none |
-| [`planner`](planner.md) | Turns a feature/change/bug-fix request into a phased, file-specific Development Plan; never touches product code | opus | `Read, Glob, Grep, Bash, Agent, Write` (Write restricted by instruction to `docs/plans/**`) | onion-architecture, fastify-best-practices, drizzle-orm-patterns, postgresql-table-design, zod, react-frontend-architecture, next-best-practices, react-best-practices, react-testing-library, typescript-expert, security, engineering-insights |
-| [`implementer`](implementer.md) | Executes exactly one task from a `planner`-authored plan (backend and/or frontend), self-verifies with that module's existing tests + typecheck | sonnet | `Read, Glob, Grep, Edit, Write, Bash, Skill, Agent` | same 12 as `planner` |
+| [`spec-creator`](spec-creator.md) | Turns a feature request (+ designs — screenshot, URL, existing code, or text) into a Spec-Driven-Development feature spec: problem/user, an optional Recommendations note, goals/non-goals with `G-N` traceability into `AC-N`, EARS acceptance criteria, edge cases, an optional Workflow & communication diagram, verification-hinted NFRs, open questions; enforces one-spec-one-feature, flags design/request contradictions as open questions, and runs a final self-check before writing; can fan out multiple `researcher` calls in parallel for multi-angle investigation; single-module specs go to that module's `specs/**`, cross-module specs (Acceptance criteria/contracts spanning ≥2 modules) go to `specs/**`; never plans implementation or touches product code | opus | `Read, Glob, Grep, WebFetch, Edit, Write, Agent` (Write/Edit restricted by instruction to `server/specs/**`, `client/specs/**`, `reviewer-core/specs/**`, `specs/**`) | mermaid-diagram, security |
+| [`implementation-planner`](implementation-planner.md) | Consumes an approved spec, maps every source `AC-N` to phased file-specific tasks, puts one or more AC-IDs on every task, and chooses an execution mode; returns spec gaps to `spec-creator` and never touches product code | opus | `Read, Glob, Grep, Bash, Agent, Write` (Write restricted by instruction to `docs/plans/**`) | onion-architecture, fastify-best-practices, drizzle-orm-patterns, postgresql-table-design, zod, react-frontend-architecture, next-best-practices, react-best-practices, react-testing-library, typescript-expert, security, engineering-insights |
+| [`implementer`](implementer.md) | Executes exactly one task from an `implementation-planner`-authored plan (backend and/or frontend), self-verifies with that module's existing tests + typecheck | sonnet | `Read, Glob, Grep, Edit, Write, Bash, Skill, Agent` | same 12 as `implementation-planner` |
 | [`test-writer`](test-writer.md) | Writes tests for existing client/server/reviewer-core code; never edits the code under test | sonnet | `Read, Glob, Grep, Edit, Write, Bash, Skill` (Write/Edit restricted by instruction to test files) | react-testing-library, react-best-practices, react-frontend-architecture, next-best-practices, fastify-best-practices, drizzle-orm-patterns, zod, typescript-expert, engineering-insights |
-| [`architecture-reviewer`](architecture-reviewer.md) | Audits onion-architecture boundaries and reports file:line-grounded findings; read-only | opus | `Read, Glob, Grep, Bash` | onion-architecture, react-frontend-architecture, typescript-expert |
-| [`plan-verifier`](plan-verifier.md) | Checks finished code against every REQ and Acceptance item of a planner plan; read-only | opus | `Read, Glob, Grep, Bash` | onion-architecture, react-testing-library, typescript-expert |
+| [`architecture-reviewer`](architecture-reviewer.md) | Audits onion-architecture boundaries and reports file:line-grounded findings; read-only | sonnet | `Read, Glob, Grep, Bash` | onion-architecture, react-frontend-architecture, typescript-expert |
+| [`plan-verifier`](plan-verifier.md) | Checks finished code against every source-spec AC and every task Verification item of an implementation-planner plan; read-only | sonnet | `Read, Glob, Grep, Bash` | onion-architecture, react-testing-library, typescript-expert |
 | [`doc-writer`](doc-writer.md) | Turns a plan/diff into documentation in the right docs location, with Mermaid diagrams | sonnet | `Read, Glob, Grep, Edit, Write, Bash, Skill` (Write/Edit restricted by instruction to doc paths) | mermaid-diagram, onion-architecture, engineering-insights |
 
 ## researcher
@@ -74,31 +93,85 @@ to `researcher`; the read-only agents may not delegate at all.
 - **Permissions:** read-only everywhere; no `Edit`/`Write`/`Skill`. Asks
   clarifying questions instead of guessing when the request is vague.
 
-## planner
+## spec-creator
 
-- **Input:** a feature/change/bug-fix request, in the chat/prompt that
-  invokes it.
-- **Output:** a Development Plan file at `docs/plans/<slug>.md` (Context /
-  Requirements / Affected Modules & Contracts / Architecture Notes / Phases
-  with a task table — Owned paths, Depends-on, Skills to use, Acceptance /
+- **Input:** a feature request, in the chat/prompt that invokes it, plus
+  optional design material: a screenshot read directly, a URL fetched via
+  `WebFetch`, a text description, or — always, when the request changes or
+  extends existing behavior — the existing code, read as design material in
+  its own right (not just for naming/style conventions).
+- **Output:** a feature spec file at `<module>/specs/YYYY-MM-DD-<slug>.md`
+  (module = `server`, `client`, `reviewer-core`, or `mcp-server`) for a single-module spec,
+  or `specs/YYYY-MM-DD-<slug>.md` for a spec whose Acceptance criteria
+  or contracts require coordinated changes across ≥2 modules (never
+  `e2e/specs/`, which holds flow definitions, not feature specs): Problem &
+  user, an optional Recommendations note (a better approach spotted while
+  reviewing, for the user to accept or reject — never folded into Goals
+  unilaterally), Goals numbered `G-N` with every `AC-N` citing which `G-N`
+  it satisfies (traceability, no orphans), User stories, EARS-format
+  Acceptance criteria, Edge cases, an optional Workflow & communication
+  section (Mermaid sequence/flow diagram + contract shapes, no
+  implementation detail), Non-functional requirements each with a short
+  `(verify: ...)` hint, Inputs and provenance, Untrusted inputs, Open
+  questions (`[NEEDS CLARIFICATION: ...]` — also used for any contradiction
+  between design material and the stated request). The file's `Spec ID:`
+  line is `SPEC-YYYY-MM-DD-<slug>` — same date and slug as the filename,
+  with a `SPEC-` prefix; a `Related:` header line links specs this one
+  depends on or complements (distinct from `Supersedes:`). Enforces one
+  spec per feature — a request bundling separable features gets a
+  split-it-up question instead of one oversized file — and runs a final
+  self-check (EARS/traceability/NFR-hints/section-completeness/placement)
+  before writing. Reads only the `INSIGHTS.md` of modules the request
+  actually touches, never all of them, and can delegate to multiple
+  `researcher` subagents in parallel when an investigation has independent
+  angles. Asks clarifying questions instead of guessing on any product
+  decision, same convention as `researcher`.
+- **Permissions:** read access across the repo plus `WebFetch` for design
+  URLs, and `Write`/`Edit` restricted by instruction to `server/specs/**`,
+  `client/specs/**`, `reviewer-core/specs/**`, and `specs/**` only —
+  never product code, never `e2e/specs/`, never `docs/plans/**`. No `Bash`,
+  deliberately: it would otherwise bypass the path restriction the
+  tool-permission system can't enforce. Has `Agent` to delegate deep
+  external research (prior art, "how do other products handle X") to
+  `researcher`, same as
+  `implementation-planner`.
+- **Sources its rules are based on:**
+  - [Alistair Mavin — EARS: Easy Approach to Requirements Syntax (official guide)](https://alistairmavin.com/ears/) — source of the 5 EARS requirement patterns (Ubiquitous/Event-driven/State-driven/Unwanted-behavior/Optional-feature) and the "shall" keyword convention.
+  - [Easy Approach to Requirements Syntax — Wikipedia](https://en.wikipedia.org/wiki/Easy_Approach_to_Requirements_Syntax) — history: Mavin, Wilkinson, Harwood, Novak (Rolls-Royce), first published at IEEE RE'09.
+  - [github/spec-kit — spec-driven.md](https://github.com/github/spec-kit/blob/main/spec-driven.md) — source of the spec.md/plan.md separation (implementation detail belongs to the plan, not the spec) and the `[NEEDS CLARIFICATION]` marker convention.
+  - `implementation-planner.md`'s `Implementation Recommendations` section — precedent reused here for HOW-only advice that never changes source acceptance criteria.
+  - The `security` skill (`.claude/skills/security/SKILL.md`, OWASP Top 10:2025) — preloaded so the template's `Security` NFR bullet and `Untrusted inputs` section are grounded in concrete categories instead of generic prose.
+  - Root [`CLAUDE.md`](../../CLAUDE.md), `server/specs/README.md`, `client/specs/README.md`, `reviewer-core/specs/README.md`, `e2e/specs/README.md`, and [`specs/README.md`](../../specs/README.md) — source of the per-module spec-folder convention, the cross-module `specs/` threshold, "one file per feature," and confirmation that `e2e/specs/` is flow JSON, not feature specs (verified directly, not assumed).
+
+## implementation-planner
+
+- **Input:** an approved `<pkg>/specs/YYYY-MM-DD-<feature>.md` or cross-module
+  `specs/YYYY-MM-DD-<feature>.md` with numbered `AC-N` criteria and no
+  unresolved `[NEEDS CLARIFICATION]`. Missing or unresolved specs are returned
+  to `spec-creator`; the planner does not ask or answer product questions.
+- **Output:** a Development Plan file at `docs/plans/<slug>.md` (Source
+  Specification / Implementation Recommendations / Execution Mode / Affected
+  Modules & Contracts / Architecture Notes / Phases with a task table — AC
+  IDs, Owned paths, Depends-on, Skills to use, Verification / AC Coverage /
   Testing Strategy / Risks / Out of Scope), plus a short summary returned as
-  text. Asks clarifying questions instead of writing a plan when the request
-  is too ambiguous.
+  text. It honors an explicitly requested execution mode or chooses one from
+  the task DAG without pausing for product input.
 - **Permissions:** read-only over the repo, plus `Write` — restricted by
   instruction (not by the tool-permission system, which has no path
-  scoping) to `docs/plans/**` only. Never `Edit`.
+  scoping) to `docs/plans/**` only. Never `Edit`, never `<pkg>/specs/**` or
+  `specs/**`.
 - **Sources its rules are based on:**
   - [Claude Code docs — Create custom subagents](https://code.claude.com/docs/en/sub-agents) — planning-type agents get read-only tools (mirrors the built-in `Plan`/`Explore` agents); the `skills:` field preloads content independently of the `Skill` tool.
   - [PubNub — Best practices for Claude Code sub-agents](https://www.pubnub.com/blog/best-practices-for-claude-code-sub-agents/) — "PM & Architect are read-heavy" tool scoping.
   - [Developers Digest — Subagent Tool Restrictions](https://www.developersdigest.tech/guides/subagent-tool-restrictions) — restrictions should be structural (the `tools:` allowlist), not instruction-only.
   - [DEV Community — Separation of Planning and Execution](https://dev.to/varun_pratapbhardwaj_b13/separation-of-planning-and-execution-the-key-pattern-for-reliable-ai-coding-agents-5b53) — a plan must fix files, behavior change, tests, and order up front, since execution reinterprets anything left unconstrained. Source of the Owned-paths/Depends-on task table.
   - [Promptessor — Best Claude Code Subagents 2026](https://promptessor.com/blog/best-claude-code-subagents-and-custom-agent-examples-for-specialized-coding-workflows-in-2026) — the human approval gate belongs between Plan and Execute, not before planning.
-  - Root [`CLAUDE.md`](../../CLAUDE.md) and the four package `AGENTS.md` files — source of the "read docs/specs/INSIGHTS.md before code" step and the Do-not-touch list.
+  - Root [`CLAUDE.md`](../../CLAUDE.md) and the four package `AGENTS.md` files — source of the "read specs/INSIGHTS.md before code" step and the Do-not-touch list.
 
 ## implementer
 
-- **Input:** one task row from a `planner`-authored plan file (task ID,
-  Owned paths, Depends-on, Skills to use, Acceptance).
+- **Input:** one task row from an `implementation-planner`-authored plan file
+  (task ID, AC IDs, Owned paths, Depends-on, Skills to use, Verification).
 - **Output:** code changes confined to that task's Owned paths, plus a
   report (task ID, files touched, skills applied, test/typecheck
   command + result, deviations from plan) returned as text.
@@ -151,10 +224,11 @@ to `researcher`; the read-only agents may not delegate at all.
 
 ## plan-verifier
 
-- **Input:** a completed implementation and its `planner`-authored Development
-  Plan under `docs/plans/**`.
-- **Output:** one evidenced status row for every `REQ-n` and every task
-  Acceptance criterion, owned-path/dependency checks, and a mechanical
+- **Input:** a completed implementation, its `implementation-planner`-authored
+  Development Plan under `docs/plans/**`, and the approved source spec named
+  by that plan.
+- **Output:** one evidenced status row for every source-spec `AC-N` and every
+  task Verification criterion, owned-path/dependency checks, and a mechanical
   `COMPLETE` or `INCOMPLETE` verdict.
 - **Permissions:** strictly read-only `Read`/`Glob`/`Grep` plus `Bash` for
   inspection and the plan's named verification commands; no `Edit`, `Write`,

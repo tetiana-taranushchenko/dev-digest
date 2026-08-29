@@ -28,6 +28,19 @@ export class ValidationError extends AppError {
   }
 }
 
+/**
+ * A request conflicts with the current state of a resource — e.g. a stale
+ * `expected_revision` on a Project Context document save (AC-9,
+ * `docs/plans/project-context-authoring.md`, T4), or a name collision when
+ * creating/uploading a document (AC-16). No force/merge semantics anywhere
+ * in that flow — the client's one recovery action is to reload and retry.
+ */
+export class ConflictError extends AppError {
+  constructor(message = 'Conflict', details?: unknown) {
+    super('conflict', message, 409, details);
+  }
+}
+
 export class ExternalServiceError extends AppError {
   constructor(message: string, details?: unknown) {
     super('external_service_error', message, 502, details);

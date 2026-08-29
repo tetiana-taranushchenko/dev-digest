@@ -1,9 +1,9 @@
 /* hooks/agents.ts — React Query hooks for the A2 Agents tab + Agent Editor. */
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Agent, AgentSkillLink, ModelInfo, Provider, ReviewStrategy } from "@devdigest/shared";
+import type { Agent, AgentSkillLink, AttachedContextDoc, ModelInfo, Provider, ReviewStrategy } from "@devdigest/shared";
 
 export function useAgents() {
   return useQuery({
@@ -108,6 +108,53 @@ export function useSetAgentSkills() {
       api.post<AgentSkillLink[]>(`/agents/${agentId}/skills`, { skill_ids: skillIds }),
     onSuccess: (_data, { agentId }) => {
       qc.invalidateQueries({ queryKey: ["agent-skills", agentId] });
+      // Linking/unlinking a skill changes which agents effectively "use"
+      // every document that skill has attached — the repo-wide listing's
+      // "used by N agents" count (server-computed across direct + enabled-
+      // linked-skill attachments) must be refetched too, or it stays stale.
+      qc.invalidateQueries({ queryKey: ["context"] });
     },
+  });
+}
+
+/** This agent's own attached Project Context documents, in persisted order —
+    each flags whether it still resolves against the current clone (AC-9). */
+export function useAgentContext(agentId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["agent-context", agentId],
+    queryFn: () => api.get<AttachedContextDoc[]>(`/agents/${agentId}/context`),
+    enabled: !!agentId,
+  });
+}
+
+/** Replace an agent's whole ordered attached-doc path set in one call
+    (paths only — never bodies; server resolves + persists order). */
+export function useSetAgentContext() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ agentId, paths }: { agentId: string; paths: string[] }) =>
+      api.put<AttachedContextDoc[]>(`/agents/${agentId}/context`, { paths }),
+    onSuccess: (_data, { agentId }) => {
+      qc.invalidateQueries({ queryKey: ["agent-context", agentId] });
+      // Attaching/detaching changes this document's "used by N agents" count,
+      // which lives on the repo-wide listing (`useContextFiles`), not this
+      // agent's own attached-set query — without this it stays stale until
+      // something else happens to refetch it (e.g. a full page reload).
+      qc.invalidateQueries({ queryKey: ["context"] });
+    },
+  });
+}
+
+/** Each enabled linked skill's own attached context docs, keyed by skill id
+    order — needed for the Context tab's combined direct + enabled-linked-
+    skill running total (AC-10). `lib/hooks/skills.ts` doesn't have a
+    `useSkillContext` hook yet (that file is T16's owned path), so this
+    queries `GET /skills/:id/context` directly rather than waiting on it. */
+export function useLinkedSkillsContext(skillIds: string[]) {
+  return useQueries({
+    queries: skillIds.map((skillId) => ({
+      queryKey: ["skill-context", skillId],
+      queryFn: () => api.get<AttachedContextDoc[]>(`/skills/${skillId}/context`),
+    })),
   });
 }

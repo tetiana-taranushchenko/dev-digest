@@ -30,6 +30,8 @@ import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
+import type { ContextDocsFacade } from '../modules/context/types.js';
+import { ContextDocsService } from '../modules/context/service.js';
 
 /**
  * DI container. One per app instance. Holds config, db, the JobRunner,
@@ -52,6 +54,8 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
+  /** Project-context facade (T7) — tests inject mock ContextDocsFacade implementations. */
+  contextDocs?: ContextDocsFacade;
 }
 
 export class Container {
@@ -78,6 +82,7 @@ export class Container {
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
+  private _contextDocs?: ContextDocsFacade;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -137,6 +142,18 @@ export class Container {
     if (this.overrides.tokenizer) return this.overrides.tokenizer;
     this._tokenizer ??= new TiktokenTokenizer();
     return this._tokenizer;
+  }
+
+  /**
+   * Project-context facade (T7, `docs/plans/project-context.md`). Document
+   * discovery, injection-order resolution, and fresh/uncached body reads for
+   * agent/skill attachments. Tests inject a mock via
+   * `ContainerOverrides.contextDocs`.
+   */
+  get contextDocs(): ContextDocsFacade {
+    if (this.overrides.contextDocs) return this.overrides.contextDocs;
+    this._contextDocs ??= new ContextDocsService(this);
+    return this._contextDocs;
   }
 
   /**

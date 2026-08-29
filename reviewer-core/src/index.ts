@@ -80,3 +80,24 @@ export {
   type ConfidenceSource,
   type ConfidenceResult,
 } from './intent/confidence.js';
+
+// Brief layer — one-LLM-call PR brief (`what`/`why`/`risk_level`/`risks`/
+// `review_focus`, AC-11). Pure domain logic: no DB, GitHub, or fs access —
+// the caller (server, T5b/T6) gathers signal content and resolves the LLM
+// provider before calling in.
+export { BriefClassification } from './brief/schema.js';
+export {
+  assembleBriefPrompt,
+  type BriefPromptSection,
+  type BriefDiffStatEntry,
+} from './brief/prompt.js';
+export {
+  generateBrief,
+  type GenerateBriefInput,
+  type GenerateBriefResult,
+} from './brief/classify.js';
+export {
+  groundBriefCitations,
+  type GroundBriefCitationsAccepted,
+  type GroundBriefCitationsResult,
+} from './brief/grounding.js';

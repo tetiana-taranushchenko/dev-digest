@@ -3,15 +3,19 @@ import type {
   Agent,
   AgentSkillLink,
   AgentVersion,
+  AttachedContextDoc,
   CiFailOn,
+  ContextSource,
   ModelInfo,
   Provider,
   ReviewStrategy,
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
-import { scanForInjectionRisk } from '../skills/injection-scan.js';
+import { scanForInjectionRisk } from '../_shared/injection-scan.js';
 import { ValidationError } from '../../platform/errors.js';
+import { RepoRepository } from '../repos/repository.js';
+import { CONTEXT_FOLDERS } from '../repo-intel/constants.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -52,9 +56,11 @@ export interface UpdateAgentInput {
 
 export class AgentsService {
   private repo: AgentsRepository;
+  private repos: RepoRepository;
 
   constructor(private container: Container) {
     this.repo = new AgentsRepository(container.db);
+    this.repos = new RepoRepository(container.db);
   }
 
   async list(workspaceId: string): Promise<Agent[]> {
@@ -200,6 +206,63 @@ export class AgentsService {
   }
 
   /**
+   * Attached context documents for an agent (T9, `docs/plans/project-context.md`,
+   * AC-6/AC-9). Ordered exactly as stored (`agent_context_docs."order"` ASC).
+   * Each entry is resolved fresh against the first connected repo in the
+   * workspace that has a clone on disk — an agent isn't bound to one repo, so
+   * this mirrors the app's single-connected-repo usage pattern rather than
+   * requiring a repo id on this route. A path that no longer resolves (clone
+   * missing entirely, or the file itself deleted/moved) is reported with
+   * `resolved: false` rather than dropped from the list (AC-9).
+   */
+  async agentContextDocs(workspaceId: string, agentId: string): Promise<AttachedContextDoc[]> {
+    const paths = await this.container.contextDocs.listAgentPaths(agentId);
+    if (paths.length === 0) return [];
+
+    const repos = await this.repos.list(workspaceId);
+    const clonedRepo = repos.find((r) => r.clonePath);
+    if (!clonedRepo?.clonePath) {
+      return paths.map((path) => ({
+        path,
+        source: classifyContextSource(path),
+        tokens: null,
+        resolved: false,
+      }));
+    }
+
+    const { resolved } = await this.container.contextDocs.readBodies(clonedRepo.clonePath, paths);
+    const bodyByPath = new Map(resolved.map((doc) => [doc.path, doc.body]));
+    return paths.map((path) => {
+      const body = bodyByPath.get(path);
+      return {
+        path,
+        source: classifyContextSource(path),
+        tokens: body !== undefined ? this.container.tokenizer.count(body) : null,
+        resolved: body !== undefined,
+      };
+    });
+  }
+
+  /**
+   * Replace the agent's attached-document set, in order — paths only, never
+   * bodies (AC-6, AC-8). Unlike `POST /agents/:id/skills` (which supports
+   * both "set the whole ordered list" and "link one more" in a single
+   * endpoint), this is a plain `PUT`: it always replaces the full ordered set,
+   * with no partial/append variant, because the spec calls for `PUT` here —
+   * a deliberate difference from the skills sibling, not an oversight.
+   */
+  async setAgentContextDocs(
+    workspaceId: string,
+    agentId: string,
+    paths: string[],
+  ): Promise<AttachedContextDoc[] | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    await this.container.contextDocs.setAgentPaths(agentId, paths);
+    return this.agentContextDocs(workspaceId, agentId);
+  }
+
+  /**
    * Dynamic model list from the provider adapter's /models. Degrades gracefully
    * to [] if the provider key is not configured (the editor still renders).
    */
@@ -211,4 +274,29 @@ export class AgentsService {
       return [];
     }
   }
+}
+
+const CONTEXT_FOLDER_TO_SOURCE: Record<(typeof CONTEXT_FOLDERS)[number], ContextSource> = {
+  specs: 'spec',
+  docs: 'docs',
+  insights: 'insights',
+};
+
+/**
+ * Classify an attached path's `source` from its top-level folder, mirroring
+ * `context/service.ts`'s `classifyFolder` + `FOLDER_TO_SOURCE` (not reused
+ * directly — that function is unexported and `context/service.ts` isn't an
+ * owned path for this task). `.devdigest/specs/` counts as an instance of
+ * `specs/`, same as document discovery. Classification is purely path-text
+ * based (no clone read needed) so it stays correct even for an unresolved
+ * (deleted/moved) attachment; an unrecognised shape defensively falls back to
+ * `docs` since `AttachedContextDoc.source` isn't nullable.
+ */
+function classifyContextSource(relPath: string): ContextSource {
+  const [first, second] = relPath.split('/');
+  if (first === '.devdigest' && second === 'specs') return 'spec';
+  if (first && (CONTEXT_FOLDERS as readonly string[]).includes(first)) {
+    return CONTEXT_FOLDER_TO_SOURCE[first as (typeof CONTEXT_FOLDERS)[number]];
+  }
+  return 'docs';
 }

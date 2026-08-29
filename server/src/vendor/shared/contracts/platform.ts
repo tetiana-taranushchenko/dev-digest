@@ -255,11 +255,20 @@ export const PrCommentInput = z.object({
 export type PrCommentInput = z.infer<typeof PrCommentInput>;
 
 // ---- Project Context ----
+/** Where a discovered document lives: a top-level `specs/`, `docs/`, or `insights/` folder. */
+export const ContextSource = z.enum(['docs', 'spec', 'insights']);
+export type ContextSource = z.infer<typeof ContextSource>;
+
 export const SpecFile = z.object({
   path: z.string(),
   content: z.string().nullish(),
   size: z.number().int().nullish(),
   updated_at: z.string().nullish(),
+  source: ContextSource,
+  /** Estimated token count (server tokenizer), for cost transparency. */
+  tokens: z.number().int().nullish(),
+  /** How many agents currently have this document attached. */
+  used_by: z.number().int().nullish(),
 });
 export type SpecFile = z.infer<typeof SpecFile>;
 
@@ -270,6 +279,105 @@ export const IndexStatus = z.object({
   chunks_indexed: z.number().int().nullish(),
 });
 export type IndexStatus = z.infer<typeof IndexStatus>;
+
+/**
+ * Index-freshness fields specific to the Project Context listing — kept as a
+ * separate extended schema (not merged into the base `IndexStatus`) so the
+ * repo-intel reindex response shape is unaffected.
+ */
+export const ContextIndexStatus = IndexStatus.extend({
+  doc_count: z.number().int(),
+  refreshed_at: z.string().nullish(),
+  /** Cause of an index-unavailable state (e.g. missing clone) — AC-5. */
+  unavailable_reason: z.string().nullish(),
+});
+export type ContextIndexStatus = z.infer<typeof ContextIndexStatus>;
+
+/** Response for GET /repos/:id/context — documents plus index freshness. */
+export const ContextListing = z.object({
+  files: z.array(SpecFile),
+  index: ContextIndexStatus,
+});
+export type ContextListing = z.infer<typeof ContextListing>;
+
+/**
+ * A single document's full content, resolved fresh from the clone. Response
+ * for GET /repos/:id/context/document — never returned by the listing.
+ */
+export const ContextDocument = z.object({
+  path: z.string(),
+  content: z.string(),
+  size: z.number().int(),
+  updated_at: z.string(),
+  source: ContextSource,
+  /** Estimated token count (server tokenizer). */
+  tokens: z.number().int(),
+  /** How many agents currently have this document attached. */
+  used_by: z.number().int(),
+  /** Content hash (sha256) used for optimistic-concurrency save conflicts. */
+  revision: z.string(),
+  /** True when the document lives under the write root (e.g. .devdigest/specs/). */
+  writable: z.boolean(),
+});
+export type ContextDocument = z.infer<typeof ContextDocument>;
+
+/** Body for PUT /repos/:id/context/document — save an edited document. */
+export const SaveContextDocumentBody = z.object({
+  path: z.string(),
+  content: z.string(),
+  /** The revision the editor last loaded; a mismatch means a stale save. */
+  expected_revision: z.string(),
+});
+export type SaveContextDocumentBody = z.infer<typeof SaveContextDocumentBody>;
+
+/** Response for PUT /repos/:id/context/document — refreshed metadata only. */
+export const SaveContextDocumentResult = z.object({
+  path: z.string(),
+  size: z.number().int(),
+  updated_at: z.string(),
+  tokens: z.number().int(),
+  revision: z.string(),
+});
+export type SaveContextDocumentResult = z.infer<typeof SaveContextDocumentResult>;
+
+/** Body for POST /repos/:id/context/entries — create a new file or folder. */
+export const CreateContextEntryBody = z.object({
+  kind: z.enum(['file', 'folder']),
+  path: z.string(),
+});
+export type CreateContextEntryBody = z.infer<typeof CreateContextEntryBody>;
+
+/**
+ * Response for POST /repos/:id/context/entries. A created folder has no
+ * `SpecFile` — an empty folder doesn't appear in the discovered-documents list.
+ */
+export const CreateContextEntryResult = z.object({
+  kind: z.enum(['file', 'folder']),
+  path: z.string(),
+  file: SpecFile.nullish(),
+});
+export type CreateContextEntryResult = z.infer<typeof CreateContextEntryResult>;
+
+/** One document attached to an agent/skill, resolved against the current clone. */
+export const AttachedContextDoc = z.object({
+  path: z.string(),
+  source: ContextSource,
+  tokens: z.number().int().nullish(),
+  /** False when the path is unresolvable/oversized/out-of-root (AC-14). */
+  resolved: z.boolean(),
+});
+export type AttachedContextDoc = z.infer<typeof AttachedContextDoc>;
+
+/**
+ * Body for PUT /agents/:id/context and PUT /skills/:id/context — ordered,
+ * repo-relative paths only (never bodies). Capped defensively; no spec-mandated
+ * number exists, so this mirrors the precedent path-count bound
+ * (`server/src/modules/intent/signals.ts:19`, `MAX_PATHS = 100`).
+ */
+export const SetContextPathsBody = z.object({
+  paths: z.array(z.string()).max(100),
+});
+export type SetContextPathsBody = z.infer<typeof SetContextPathsBody>;
 
 // ---- Run request (review trigger; owned by A2, contract lives here) ----
 export const RunRequest = z.object({

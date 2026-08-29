@@ -23,3 +23,4 @@ user asks about FIRST — these are curated and may already answer it — then r
 - Working inside a package → read that package's `AGENTS.md`: [`server/AGENTS.md`](server/AGENTS.md), [`client/AGENTS.md`](client/AGENTS.md), [`reviewer-core/AGENTS.md`](reviewer-core/AGENTS.md), [`e2e/AGENTS.md`](e2e/AGENTS.md)
 - Agent prompt templates → read [`docs/agent-prompts/`](docs/agent-prompts/)
 - Custom subagent roster and usage → read [`.claude/agents/README.md`](.claude/agents/README.md)
+- How those subagents performed in past multi-agent sessions → read [`.claude/agents/WORKFLOW_INSIGHTS.md`](.claude/agents/WORKFLOW_INSIGHTS.md) (written manually via `/workflow-retro`)

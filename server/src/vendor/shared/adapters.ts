@@ -67,6 +67,14 @@ export interface StructuredRequest<T> {
    * the `session_id` body field; ignored by providers that don't support it.
    */
   sessionId?: string;
+  /**
+   * Overrides the transport-level retry-on-429/5xx layer that wraps the
+   * underlying HTTP call, independent of `maxRetries`'s reprompt-on-schema-
+   * failure loop. `undefined` (the default for every existing caller)
+   * preserves each provider's own default retry behavior. Set to `0` for a
+   * hard "exactly one billed generation" guarantee (see `generateBrief`).
+   */
+  transportRetries?: number;
 }
 
 export interface StructuredResult<T> {

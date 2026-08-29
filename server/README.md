@@ -70,6 +70,7 @@ flowchart TB
     intent["intent<br/>GET/POST /pulls/:id/intent"]
     smartDiff["smart-diff<br/>GET /pulls/:id/smart-diff"]
     blast["blast<br/>GET /pulls/:id/blast"]
+    brief["brief<br/>GET/POST /pulls/:id/brief"]
   end
   subgraph Agents["Agents"]
     agents["agents<br/>/agents · /agents/:id"]
@@ -91,6 +92,73 @@ then reads changed symbols, callers, and reverse-import impact through the
 human-readable explanation for non-`ok` results
 (`src/modules/blast/assemble.ts:207-225`,
 `src/vendor/shared/contracts/brief.ts:117-135`).
+
+### `brief` — one-LLM-call PR summary, shared cache key
+
+`GET`/`POST /pulls/:id/brief` (`src/modules/brief/routes.ts:29-52`) both
+render `{what, why, risk_level, risks[], review_focus[]}` — a server-
+assembled, cached `Brief` (`src/vendor/shared/contracts/brief.ts`). The part
+most likely to confuse a future reader: **both routes compute the exact same
+cache key before doing anything else**, so `GET` and `POST` can never
+disagree about what "current" means.
+
+`computeBriefStateKey` (`src/modules/brief/state-key.ts:75-113`) SHA-256s 7
+components in fixed order — `head_sha`, `agent_id`, a hash of the PR
+title+body, an intent marker (`headSha:generatedAt`), the agent's
+attached-document path list, an `mtimeMs+size` fingerprint over those
+documents (`ContextDocsFacade.statBodies`, `src/modules/context/service.ts:205`
+— `stat()`-only, never `readFile`), and the repo-intel index state
+(`lastIndexedSha:updatedAt`). Both `BriefService.get` (`GET`) and
+`BriefService.ensureForPull` (`POST`) call this same function, then look the
+result up via the one shared `getBriefByStateKey(prId, agentId, stateKey)`
+(`src/modules/brief/repository.ts:48-60`).
+
+**A state-key mismatch means "no current Brief," never a stale one.** A new
+commit, an edited PR title/body, a re-attached/re-ordered document, an
+on-disk document edit, or a repo reindex all change the key. On a miss, `GET`
+returns `{brief: null, cached: false}` rather than an old row for a different
+key (`src/modules/brief/service.ts:66-94`) — it never calls
+`gatherBriefSignals`, reads a document body, or calls the LLM. `POST` on a
+miss (or an explicit `force: true` regenerate) does the expensive part `GET`
+never touches: gather signals (intent, blast, diff stats, linked issue,
+commits, document bodies — `src/modules/brief/signals.ts`), trim to an
+8000-token budget measured on the fully assembled prompt
+(`src/modules/brief/budget.ts`), one structured `reviewer-core` LLM call
+(`generateBrief`, `maxRetries: 0` **and** `transportRetries: 0`, so exactly
+one billed call happens even across a transient transport retry), a
+dedicated grounding gate that drops any risk/review-focus citation absent
+from the assembled input (`reviewer-core/src/brief/grounding.ts` — a new,
+separate file from the do-not-touch `reviewer-core/src/grounding.ts`), then
+`upsertBrief` replaces the row for that state key
+(`src/modules/brief/repository.ts:69-100` — an upsert on
+`(prId, agentId, stateKey)`, not a bare insert, because a second regenerate
+at an unchanged key must replace the row, not conflict with it).
+
+Concurrent `POST`s for the **same** `(prId, agentId, stateKey)` join one
+in-flight generation via a module-level `Map` keyed
+`` `${prId}:${agentId}:${stateKey}` `` (`src/modules/brief/service.ts:140-154`,
+mirrors `intent/service.ts`'s TOCTOU guard) — a request under a **different**
+state key (e.g. a commit landing mid-generation) starts its own generation
+instead of joining and returning a Brief for the old state. `POST` is
+rate-limited to `5/min` (`src/modules/brief/routes.ts:42`).
+
+```mermaid
+flowchart TD
+  GETREQ["GET /pulls/:id/brief"] --> KEY
+  POSTREQ["POST /pulls/:id/brief<br/>(force?)"] --> KEY
+  KEY["computeBriefStateKey<br/>7-component SHA-256<br/>(head_sha · agent_id · title+body ·<br/>intent marker · attached docs ·<br/>docs mtime+size · index state)"] --> LOOKUP
+  LOOKUP{"getBriefByStateKey<br/>(prId, agentId, stateKey)"}
+
+  LOOKUP -->|"hit"| GHIT["GET → stored Brief<br/>cached: true"]
+  LOOKUP -->|"miss"| GMISS["GET → brief: null, cached: false<br/>(never a stale Brief, AC-19)"]
+
+  LOOKUP -->|"hit, not force"| PHIT["POST → stored Brief<br/>cached: true, 0 LLM calls"]
+  LOOKUP -->|"miss, or force"| INFLIGHT{"in-flight generation for<br/>this prId:agentId:stateKey?"}
+  INFLIGHT -->|"yes"| JOIN["join in-flight promise<br/>0 extra LLM calls"]
+  INFLIGHT -->|"no"| GEN["signals → budget → one LLM call<br/>→ grounding gate → upsertBrief"]
+  GEN --> ROW[("pr_brief row<br/>keyed on prId + agentId + stateKey")]
+  JOIN --> ROW
+```
 
 ## Environment
 

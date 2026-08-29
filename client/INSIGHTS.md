@@ -16,6 +16,9 @@ Findings and insights for `client` (`@devdigest/web`). Empty for now — filled 
 
 ## Tool & Library Notes
 
+### 2026-08-29 — jsdom reports every element's `offsetParent` as null in focus-trap tests
+`components/context-picker/_components/useFocusTrap.ts` filters focusable controls with `el.offsetParent !== null`; in jsdom this makes the list empty and correctly exercises the hook's fallback of focusing the drawer wrapper, even though a real browser focuses the first visible button. Component tests should assert wrapper focus plus Escape/focus restoration, not pretend jsdom performs layout; browser/e2e coverage remains the right place to verify Tab cycling between visible controls.
+
 ## Recurring Errors & Fixes
 
 ### 2026-08-04 — A zod `.nullable()` field is REQUIRED (just null-valued); `.nullish()` is what makes it optional

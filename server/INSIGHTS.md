@@ -11,6 +11,9 @@ Findings and insights for `server` (`@devdigest/api`). Empty for now — filled 
 
 ## Codebase Patterns
 
+### 2026-08-29 — Scan project context at run time, not only when it is attached
+`modules/context/service.ts` reads attached document bodies fresh from the clone on every run (AC-12), so a warning computed by `PUT /agents/:id/context` can become stale after an out-of-band file edit. Put injection-risk detection in `modules/reviews/run-executor.ts` immediately after `readBodies`; keep it warning-only because legitimate security docs may quote attacks, and rely on reviewer-core's structural `<untrusted>` wrapping plus `INJECTION_GUARD` as the actual trust boundary.
+
 ### 2026-08-04 — `agent_runs` rows for one "Run Review" click are created synchronously, before any LLM call
 `server/src/modules/reviews/service.ts`'s `runReview` loops over every target agent and calls `createAgentRun` (status `'running'`) for ALL of them up front, then fires `executeRuns(...)` in the background (`void this.executor.executeRuns(...).catch(...)`, not awaited). So every `agent_runs` row belonging to one click lands within milliseconds/low seconds of each other in `ran_at` — useful as a cheap "same batch" grouping signal when there's no explicit batch id (see the Open Question below).
 

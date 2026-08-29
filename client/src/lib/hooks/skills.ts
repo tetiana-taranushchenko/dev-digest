@@ -3,7 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Skill, SkillSource, SkillType } from "@devdigest/shared";
+import type { AttachedContextDoc, Skill, SkillSource, SkillType } from "@devdigest/shared";
 
 export function useSkills() {
   return useQuery({
@@ -54,6 +54,10 @@ export function useUpdateSkill() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["skills"] });
       qc.setQueryData(["skill", data.id], data);
+      // Toggling `enabled` changes whether this skill's attached documents
+      // count toward any linked agent's "used by N agents" (only an enabled
+      // skill's attachments are injected/counted) — refetch the listing too.
+      qc.invalidateQueries({ queryKey: ["context"] });
     },
   });
 }
@@ -65,6 +69,38 @@ export function useDeleteSkill() {
     onSuccess: (_d, id) => {
       qc.invalidateQueries({ queryKey: ["skills"] });
       qc.removeQueries({ queryKey: ["skill", id] });
+    },
+  });
+}
+
+/** This skill's own attached Project Context documents, in persisted order —
+    each flags whether it still resolves against the current clone (AC-9).
+    Query key (`["skill-context", skillId]`) intentionally matches
+    `useLinkedSkillsContext` (`lib/hooks/agents.ts`), which queried
+    `GET /skills/:id/context` directly before this hook existed — sharing the
+    key means both hooks share one cache entry per skill instead of issuing
+    duplicate fetches. */
+export function useSkillContext(skillId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["skill-context", skillId],
+    queryFn: () => api.get<AttachedContextDoc[]>(`/skills/${skillId}/context`),
+    enabled: !!skillId,
+  });
+}
+
+/** Replace a skill's whole ordered attached-doc path set in one call
+    (paths only — never bodies; server resolves + persists order). */
+export function useSetSkillContext() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ skillId, paths }: { skillId: string; paths: string[] }) =>
+      api.put<AttachedContextDoc[]>(`/skills/${skillId}/context`, { paths }),
+    onSuccess: (_data, { skillId }) => {
+      qc.invalidateQueries({ queryKey: ["skill-context", skillId] });
+      // Same reasoning as useSetAgentContext: this document's "used by N
+      // agents" count lives on the repo-wide listing, not this skill's own
+      // attached-set query.
+      qc.invalidateQueries({ queryKey: ["context"] });
     },
   });
 }

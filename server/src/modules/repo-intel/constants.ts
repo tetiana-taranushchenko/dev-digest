@@ -51,3 +51,9 @@ export const HOTNESS_WINDOW_DAYS = 180;
 export const DEFAULT_REPO_MAP_TOKEN_BUDGET = 1500;
 /** Signatures are trimmed to this many chars in the parse phase (cache stability). */
 export const MAX_SIGNATURE_CHARS = 120;
+
+// --- Project-context discovery (docs/plans/project-context.md T3) ----------
+/** Markdown extension set for `walkClone(root, { extensions: MARKDOWN_EXT })`. */
+export const MARKDOWN_EXT = ['.md'] as const;
+/** Top-level folders that qualify as project-context sources (docs | spec | insights). */
+export const CONTEXT_FOLDERS = ['specs', 'docs', 'insights'] as const;

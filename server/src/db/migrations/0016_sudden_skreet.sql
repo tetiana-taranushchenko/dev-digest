@@ -1,0 +1,1 @@
+CREATE INDEX "pr_brief_agent_id_idx" ON "pr_brief" USING btree ("agent_id");

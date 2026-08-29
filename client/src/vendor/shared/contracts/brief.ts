@@ -228,3 +228,61 @@ export const PrBrief = z.object({
   history: PrHistory,
 });
 export type PrBrief = z.infer<typeof PrBrief>;
+
+// ---- Brief (one-LLM-call PR brief, sibling to PrBrief — D6) ----
+export const RiskLevel = z.enum(['low', 'medium', 'high']);
+export type RiskLevel = z.infer<typeof RiskLevel>;
+
+/** Navigation-only citation (D14): `file` is grounded (AC-14), `line` is not. */
+export const ReviewFocusItem = z.object({
+  file: z.string(),
+  line: z.number().int(),
+  reason: z.string(),
+});
+export type ReviewFocusItem = z.infer<typeof ReviewFocusItem>;
+
+/** The one-LLM-call Brief (AC-11). Sibling to `PrBrief`, which is untouched (D6). */
+export const Brief = z.object({
+  what: z.string(),
+  why: z.string(),
+  risk_level: RiskLevel,
+  risks: z.array(Risk),          // reuse existing Risk — kind/title/explanation/severity/file_refs
+  review_focus: z.array(ReviewFocusItem),
+});
+export type Brief = z.infer<typeof Brief>;
+
+/** One citation dropped by the grounding gate, WITH its reason — AC-13/AC-14
+ *  require the reason to be recorded, not just counted. `label` identifies
+ *  what was dropped (a risk title, or a review-focus file) without carrying
+ *  model prose wholesale. */
+export const BriefDrop = z.object({
+  kind: z.enum(['risk', 'risk_citation', 'review_focus']),
+  label: z.string(),
+  file: z.string().nullish(),
+  reason: z.string(),
+});
+export type BriefDrop = z.infer<typeof BriefDrop>;
+
+/** Response shape for both GET and POST /pulls/:id/brief (AC-18, AC-22, AC-24).
+ *  `brief: null` = "no brief for the PR's CURRENT state key" — never a stale
+ *  one (AC-19). `cached` means "returned from storage without an LLM call";
+ *  it is therefore always `false` when `brief` is null, on GET and POST
+ *  alike, and `true` for every served stored Brief. */
+export const BriefResult = z.object({
+  brief: Brief.nullable(),
+  cached: z.boolean(),
+  state_key: z.string(),
+  intent_available: z.boolean(),
+  blast_available: z.boolean(),
+  dropped_sections: z.array(z.string()),
+  dropped_citations: z.array(BriefDrop),
+  generated_at: z.string().nullable(),
+  /** Observability fields surfaced to the client (AC-29 data already logged
+   *  server-side; these expose the same numbers for the Brief summary's
+   *  cost/token display). `nullish` so a stored row from before this field
+   *  existed, or an empty/error result, need not populate them. */
+  tokens_in: z.number().nullish(),
+  tokens_out: z.number().nullish(),
+  cost_usd: z.number().nullish(),
+});
+export type BriefResult = z.infer<typeof BriefResult>;

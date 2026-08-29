@@ -2,7 +2,7 @@
 name: architecture-reviewer
 description: 'Use proactively to audit architectural boundaries in DevDigest — onion-architecture dependency direction (routes → service → repository/adapters → domain), composition-root discipline in server/src/platform/container.ts, SecretsProvider vs process.env, reviewer-core''s domain purity and its groundFindings() citation gate, do-not-touch paths, the *.it.test.ts lane split, and LAYER_MAP.md drift. Strictly read-only: no Edit, no Write, no subagent spawning. Reports findings with a verified file:line citation and a CRITICAL/HIGH/MEDIUM severity; never fixes, never approves or rejects. Not a security or performance review (separate agents/skills own those). Examples: "Review the boundaries in server/src/modules/conventions", "Check whether this branch''s diff breaks any layering rule".'
 tools: Read, Glob, Grep, Bash
-model: opus
+model: sonnet
 skills:
   - onion-architecture
   - react-frontend-architecture
