@@ -1,0 +1,79 @@
+{
+  "skill_name": "onion-architecture",
+  "evals": [
+    {
+      "id": 0,
+      "name": "webhooks-service-bypass",
+      "prompt": "I put together a first draft of a new module for receiving GitHub webhook deliveries — modules/webhooks/routes.ts, service.ts, repository.ts, plus a small adapter at adapters/webhooks/hmac-verifier.ts (all attached below). Before I wire it into modules/index.ts and open a PR, can you review it and point out anything that's off?",
+      "expected_output": "Flags: (1) routes.ts importing repository.ts directly and re-implementing the dedupe check instead of going through service.ts; (2) service.ts importing db/schema directly for the workspace lookup instead of adding a repository method; (3) service.ts instantiating HmacWebhookVerifier directly instead of resolving it through the container (composition-root violation).",
+      "files": [
+        "fixtures/webhooks/routes.ts",
+        "fixtures/webhooks/service.ts",
+        "fixtures/webhooks/repository.ts",
+        "fixtures/webhooks/hmac-verifier.ts"
+      ],
+      "assertions": [
+        {
+          "name": "flags-routes-bypassing-service-to-repository",
+          "text": "The review flags that routes.ts imports repository.ts directly and re-implements the delivery-dedupe check, instead of routing that logic through service.ts."
+        },
+        {
+          "name": "flags-service-importing-db-directly",
+          "text": "The review flags that service.ts imports db/schema directly for the workspace lookup instead of adding a typed method to repository.ts."
+        },
+        {
+          "name": "flags-service-wiring-concrete-adapter-directly",
+          "text": "The review flags that service.ts imports and instantiates the concrete HmacWebhookVerifier itself instead of resolving it through platform/container.ts."
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "risk-score-domain-purity",
+      "prompt": "I'm adding a new risk-scoring step to reviewer-core — reviewer-core/src/review/risk-score.ts (attached). It should combine finding severity with how central the touched files are in the repo. Can you take a look before I wire it into review/run.ts?",
+      "expected_output": "Flags: (1) importing a Fastify type (FastifyRequest) into reviewer-core domain code; (2) importing a server/db type (PullRow) into reviewer-core, crossing the domain/infra boundary; (3) the direct fetch() call to the GitHub API inside the domain function instead of receiving that data through an injected interface (domain-purity violation).",
+      "files": [
+        "fixtures/risk-score/risk-score.ts"
+      ],
+      "assertions": [
+        {
+          "name": "flags-fastify-type-in-domain",
+          "text": "The review flags importing a Fastify type (FastifyRequest) into reviewer-core domain code as a framework dependency that doesn't belong there."
+        },
+        {
+          "name": "flags-server-db-type-in-domain",
+          "text": "The review flags importing PullRow from server/src/db into reviewer-core as reaching across the domain/infra boundary."
+        },
+        {
+          "name": "flags-direct-network-side-effect",
+          "text": "The review flags the direct fetch() call to the GitHub API inside the domain function as a domain-purity violation (a side effect not mediated by an injected interface)."
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "notifications-graduated-layering",
+      "prompt": "Drafted a small notifications module (routes.ts, service.ts, repository.ts, attached) — users get a notification row, can list them, mark one read, and there's a small unread-count badge for the topbar. Can you check this over before I register it in modules/index.ts?",
+      "expected_output": "Flags: (1) service.ts is an empty pass-through added for a module that doesn't need the full split (graduated-layering boilerplate); (2) the async .refine() in routes.ts checking that userId exists is a business invariant that belongs in the service, not in Zod validation; (3) the unread-count handler in routes.ts imports db/schema directly and queries the table itself instead of going through repository.ts.",
+      "files": [
+        "fixtures/notifications/routes.ts",
+        "fixtures/notifications/service.ts",
+        "fixtures/notifications/repository.ts"
+      ],
+      "assertions": [
+        {
+          "name": "flags-empty-passthrough-service",
+          "text": "The review flags service.ts as an empty pass-through that adds no logic, unnecessary for a module this simple."
+        },
+        {
+          "name": "flags-business-invariant-in-refine",
+          "text": "The review flags the async .refine() in routes.ts (checking the user exists) as a business invariant that belongs in the service layer, not in Zod shape validation."
+        },
+        {
+          "name": "flags-routes-importing-db-directly",
+          "text": "The review flags the unread-count handler in routes.ts for importing db/schema directly and querying the table itself instead of going through repository.ts."
+        }
+      ]
+    }
+  ]
+}

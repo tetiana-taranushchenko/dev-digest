@@ -1,0 +1,19 @@
+{
+  "eval_id": 1,
+  "eval_name": "risk-score-domain-purity",
+  "prompt": "I'm adding a new risk-scoring step to reviewer-core — reviewer-core/src/review/risk-score.ts (attached). It should combine finding severity with how central the touched files are in the repo. Can you take a look before I wire it into review/run.ts?",
+  "assertions": [
+    {
+      "name": "flags-fastify-type-in-domain",
+      "text": "The review flags importing a Fastify type (FastifyRequest) into reviewer-core domain code as a framework dependency that doesn't belong there."
+    },
+    {
+      "name": "flags-server-db-type-in-domain",
+      "text": "The review flags importing PullRow from server/src/db into reviewer-core as reaching across the domain/infra boundary."
+    },
+    {
+      "name": "flags-direct-network-side-effect",
+      "text": "The review flags the direct fetch() call to the GitHub API inside the domain function as a domain-purity violation (a side effect not mediated by an injected interface)."
+    }
+  ]
+}

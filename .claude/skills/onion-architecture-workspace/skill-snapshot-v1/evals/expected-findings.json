@@ -1,0 +1,75 @@
+{
+  "skill": "onion-architecture",
+  "findings": [
+    {
+      "id": "webhooks-routes-bypasses-service",
+      "file": "fixtures/webhooks/routes.ts",
+      "line": 23,
+      "rule": "SKILL.md#dependency-direction-critical",
+      "description": "routes.ts calls repository.ts's findByDeliveryId directly for the dedupe check instead of routing through service.ts — and this path skips HMAC signature verification entirely, since that only runs inside service.handleDelivery."
+    },
+    {
+      "id": "webhooks-service-direct-db-import",
+      "file": "fixtures/webhooks/service.ts",
+      "line": 32,
+      "rule": "SKILL.md#dependency-direction-critical",
+      "description": "service.ts queries db/schema directly for the workspace lookup instead of adding a method to repository.ts."
+    },
+    {
+      "id": "webhooks-service-adapter-instantiated-directly",
+      "file": "fixtures/webhooks/service.ts",
+      "line": 15,
+      "rule": "SKILL.md#composition-root-medium",
+      "description": "service.ts constructs the concrete HmacWebhookVerifier itself instead of resolving it through platform/container.ts, the sole composition root allowed to wire an interface to its implementation."
+    },
+    {
+      "id": "risk-score-imports-fastify-type",
+      "file": "fixtures/risk-score/risk-score.ts",
+      "line": 3,
+      "rule": "SKILL.md#domain-purity-reviewer-core-is-the-reference-example-critical",
+      "description": "Imports FastifyRequest into reviewer-core, a framework-free domain package."
+    },
+    {
+      "id": "risk-score-imports-server-db-type",
+      "file": "fixtures/risk-score/risk-score.ts",
+      "line": 4,
+      "rule": "SKILL.md#domain-purity-reviewer-core-is-the-reference-example-critical",
+      "description": "Imports PullRow from server/src/db into reviewer-core, crossing the domain/infra boundary reviewer-core must never cross."
+    },
+    {
+      "id": "risk-score-direct-network-side-effect",
+      "file": "fixtures/risk-score/risk-score.ts",
+      "line": 32,
+      "rule": "SKILL.md#domain-purity-reviewer-core-is-the-reference-example-critical",
+      "description": "fetchFanInFromGitHub calls the GitHub API directly inside domain code instead of receiving that data through an injected interface — an un-gated second side effect alongside the one injected LLMProvider reviewer-core is meant to have."
+    },
+    {
+      "id": "notifications-empty-passthrough-service",
+      "file": "fixtures/notifications/service.ts",
+      "line": 5,
+      "rule": "SKILL.md#graduated-layering-by-module-complexity-high",
+      "description": "service.ts only forwards list/markRead to the repository with zero logic, while the module's real logic (existence check, unread-count derivation) leaked into routes.ts instead of living here."
+    },
+    {
+      "id": "notifications-business-invariant-in-zod-refine",
+      "file": "fixtures/notifications/routes.ts",
+      "line": 24,
+      "rule": "SKILL.md#validation-placement-high",
+      "description": "The 'userId must exist' invariant is encoded as an async Zod .refine() in routes.ts instead of living in service.ts."
+    },
+    {
+      "id": "notifications-routes-bypasses-service-for-create",
+      "file": "fixtures/notifications/routes.ts",
+      "line": 46,
+      "rule": "SKILL.md#dependency-direction-critical",
+      "description": "The POST handler calls repository.ts's insert directly instead of going through service.ts."
+    },
+    {
+      "id": "notifications-routes-direct-db-query",
+      "file": "fixtures/notifications/routes.ts",
+      "line": 37,
+      "rule": "SKILL.md#dependency-direction-critical",
+      "description": "The unread-count handler imports db/schema directly and queries the table itself instead of going through repository.ts."
+    }
+  ]
+}

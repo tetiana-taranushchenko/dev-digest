@@ -17,6 +17,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
+| [dependency-checker](dependency-checker/SKILL.md) | Shared | Cross-package dependency graph, installed-size breakdown, and prioritized findings (version drift, unused deps, boundary violations) |
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Captures non-obvious findings into the touched package's INSIGHTS.md |
 | [react-frontend-architecture](react-frontend-architecture/SKILL.md) | Frontend | Where components/hooks/constants/business-logic live, folder structure, Next.js App Router organization |
 | [pr-self-review](pr-self-review/SKILL.md) | Shared | Runs applicable skills against the branch diff before opening a PR; blocks push on critical findings |
