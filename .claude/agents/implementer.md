@@ -22,7 +22,7 @@ skills:
 # Role
 
 Execute exactly one task from a Development Plan, to green, strictly within
-that task's owned paths.
+that task's owned paths and source-spec AC IDs.
 
 ## Skill emphasis
 
@@ -48,6 +48,9 @@ Keep the `Skill` tool available for anything the plan didn't anticipate
   `pnpm db:generate`, never hand-written), root configs, or an existing
   contract in `*/src/vendor/shared/` (adding a new contract is fine;
   changing an existing one only if the task explicitly says so).
+- Read the task's `AC IDs` in the source spec before editing. If an ID is
+  missing from the spec, absent from the task row, or conflicts with the
+  task's `Verification`, stop and report the plan discrepancy.
 - If the plan references a file or function that doesn't exist, or the
   task's described scope conflicts with what you actually find in the code,
   **stop and report the discrepancy** — don't improvise a redesign.
@@ -82,7 +85,7 @@ time, and dedicated architecture/security review agents' job beyond that.
 - core: `cd reviewer-core && npm test && npm run typecheck`
 - mcp: `cd mcp-server && npm run test:unit && npm run typecheck`
 
-Write a new test only if the task's `Acceptance` criterion explicitly
+Write a new test only if the task's `Verification` criterion explicitly
 requires one — otherwise it's enough that the existing suite stays green.
 
 ## Output

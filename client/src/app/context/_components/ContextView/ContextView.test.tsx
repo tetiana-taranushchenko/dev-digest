@@ -6,6 +6,7 @@ import contextMessages from "../../../../../messages/en/context.json";
 import commonMessages from "../../../../../messages/en/common.json";
 
 const mutate = vi.fn();
+const contextRepoIds: Array<string | null | undefined> = [];
 
 let repoId: string | null = "repo-1";
 let queryData: ContextListing | undefined;
@@ -21,13 +22,16 @@ vi.mock("../../../../lib/repo-context", () => ({
 }));
 
 vi.mock("../../../../lib/hooks/core", () => ({
-  useContextFiles: () => ({
-    data: queryData,
-    isLoading,
-    isError,
-    error: null,
-    refetch: vi.fn(),
-  }),
+  useContextFiles: (requestedRepoId: string | null | undefined) => {
+    contextRepoIds.push(requestedRepoId);
+    return {
+      data: queryData,
+      isLoading,
+      isError,
+      error: null,
+      refetch: vi.fn(),
+    };
+  },
   useReindexContext: () => ({ mutate, isPending: false }),
   useContextDocument: () => ({
     data: undefined,
@@ -56,10 +60,10 @@ function file(o: Partial<SpecFile>): SpecFile {
   };
 }
 
-function renderView() {
+function renderView(routeRepoId?: string) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ context: contextMessages, common: commonMessages }}>
-      <ContextView />
+      <ContextView repoId={routeRepoId} />
     </NextIntlClientProvider>,
   );
 }
@@ -67,6 +71,7 @@ function renderView() {
 afterEach(() => {
   cleanup();
   mutate.mockClear();
+  contextRepoIds.length = 0;
   repoId = "repo-1";
   queryData = undefined;
   isLoading = false;
@@ -83,6 +88,20 @@ describe("ContextView — empty state (AC-2)", () => {
 
     expect(screen.getByText(contextMessages.empty.title)).toBeInTheDocument();
     expect(screen.getByText(contextMessages.empty.body)).toBeInTheDocument();
+  });
+});
+
+describe("ContextView — repository scope", () => {
+  it("prefers the canonical route repo id over the previously active repo", () => {
+    queryData = {
+      files: [],
+      index: { status: "done", pct: 100, message: null, chunks_indexed: 0, doc_count: 0, refreshed_at: null, unavailable_reason: null },
+    };
+
+    renderView("repo-from-route");
+
+    expect(contextRepoIds).toContain("repo-from-route");
+    expect(contextRepoIds).not.toContain("repo-1");
   });
 });
 

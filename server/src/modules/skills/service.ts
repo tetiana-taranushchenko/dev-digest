@@ -10,7 +10,7 @@ import { ValidationError } from '../../platform/errors.js';
 import { UNTRUSTED_SOURCES } from './constants.js';
 import { SkillsRepository } from './repository.js';
 import { changeSummary, toSkillDto } from './helpers.js';
-import { scanForInjectionRisk } from './injection-scan.js';
+import { scanForInjectionRisk } from '../_shared/injection-scan.js';
 import type { SkillVersionDto } from './helpers.js';
 import { SkillStatsRepository, thirtyDaysAgo } from './stats.repo.js';
 import type { CompactSkillStats, SkillStats } from './contracts.js';

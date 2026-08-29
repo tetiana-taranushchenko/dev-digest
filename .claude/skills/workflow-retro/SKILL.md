@@ -1,6 +1,6 @@
 ---
 name: workflow-retro
-description: Captures a retrospective of a just-finished multi-subagent stretch of this session — which of this repo's custom Claude Code subagents (.claude/agents/*.md) ran, in what order and at what depth (including a subagent's own nested children), with real per-agent token/cache/cost/tool-call/timing figures extracted from each agent's own transcript via jq (not an estimate), what came easily, what was hard, what got duplicated across agents (or with the orchestrator's own work), where the user had to intervene or correct course, and one concrete recommendation for next time. Appends a dated entry to .claude/agents/WORKFLOW_INSIGHTS.md. MANUAL ONLY — invoke exactly when the user runs /workflow-retro. Never invoke this proactively or automatically at the end of a session on your own judgment, and never wire it to a hook — the user has explicitly opted for manual-only invocation, at least for now.
+description: Captures a retrospective of a just-finished multi-subagent stretch of this session — which of this repo's custom Claude Code subagents (.claude/agents/*.md) ran, in what order and at what depth (including a subagent's own nested children), with real per-agent token/cache/cost/tool-call/timing figures extracted from each agent's own transcript via jq (not an estimate), what came easily, what was hard, what got duplicated across agents (or with the orchestrator's own work), where the user had to intervene or correct course, and one concrete recommendation for next time. Appends the detailed report to .claude/agents/WORKFLOW_INSIGHTS.md and a compact trend row to docs/retros/ledger.md. MANUAL ONLY — invoke exactly when the user runs /workflow-retro. Never invoke this proactively or automatically at the end of a session on your own judgment, and never wire it to a hook — the user has explicitly opted for manual-only invocation, at least for now.
 ---
 
 # Workflow Retro
@@ -122,11 +122,15 @@ default behavior wasn't what the user actually wanted. Quote or closely
 paraphrase what triggered it, not just "user intervened."
 
 **Step 6 — Dedup check.** Read `.claude/agents/WORKFLOW_INSIGHTS.md` in full
-(create it with the two headings below if it doesn't exist yet). If this
-retro's real findings are already recorded — a near-identical friction
-point, duplication pattern, or recommendation — do not write a near-duplicate
-entry. If a **new** entry meaningfully updates or contradicts an existing
-one, append the new entry and reference the old one instead of editing it.
+(create it with the two headings below if it doesn't exist yet), then read
+`docs/retros/ledger.md` in full (create it with the ledger structure below if
+it doesn't exist yet). If this retro's real findings are already recorded — a
+near-identical friction point, duplication pattern, or recommendation — do
+not write a near-duplicate detailed entry. Treat an exact `(Date, Workflow)`
+pair as the ledger row's identity: never append that exact pair twice. If the
+detailed entry exists but its ledger row is missing, backfill only the ledger
+row. If a **new** entry meaningfully updates or contradicts an existing one,
+append the new entry and reference the old one instead of editing it.
 
 **Step 7 — Write the entry.** Append under `## Retrospectives`, using the
 template below. Then check: has the same friction point, duplication
@@ -134,6 +138,15 @@ pattern, or recommendation now shown up in **2 or more** dated entries? If
 so, add or update one line under `## Recurring Patterns` at the top of the
 file, pointing at the dated entries it's drawn from — that section is the
 skimmable summary; `## Retrospectives` is the raw log.
+
+**Step 8 — Append the trend row.** Append exactly one compact row to
+`docs/retros/ledger.md` for this run. Copy the figures from the detailed
+entry's Totals line — do not recalculate or round them differently. `Workflow`
+is a short, distinguishing run label; `Next action` is the same single
+concrete action as the detailed entry's `Next time`, shortened to one line.
+Use `≈` on any derived/fallback figure exactly when the detailed entry does.
+This ledger is the cross-run comparison surface required by the lab; it does
+not replace or duplicate the detailed narrative.
 
 ## File structure
 
@@ -176,6 +189,25 @@ If a transcript was unreadable and a figure had to fall back to `≈`
 under it — never silently blend a real number and a guess in the same
 totals row.
 
+## Trend ledger structure
+
+`docs/retros/ledger.md` is append-only and intentionally compact:
+
+```md
+# Workflow Retrospective Ledger
+
+Compact cross-run metrics. Detailed evidence and narrative live in
+[`.claude/agents/WORKFLOW_INSIGHTS.md`](../../.claude/agents/WORKFLOW_INSIGHTS.md).
+
+| Date | Workflow | Agents | Tokens in / out | Cache read / hit | Tools | Wall | Parallelism | Cost | Next action |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| YYYY-MM-DD | <short run label> | <n> | <in> / <out> | <cache-read> / <hit%> | <n> | <n>min | <n>x | $<n> | <one concrete action> |
+```
+
+Keep one row per real retrospective run, oldest first. Do not add prose
+entries, per-agent rows, launch order, friction detail, or human-intervention
+detail here; those belong only in `WORKFLOW_INSIGHTS.md`.
+
 Vague (skip this): "Communication could be better." Actionable (write this):
 "Agent A's brief didn't say the output should be structured data — it
 returned prose the orchestrator then had to re-parse by hand; next time pass
@@ -185,6 +217,9 @@ a `schema` /explicit output-shape instruction in the brief."
 
 - **Does not touch any package's `INSIGHTS.md`.** That's `engineering-insights` —
   durable knowledge about the *codebase*. This file is about the *agents/workflow*.
+- **Does not turn the ledger into a second detailed report.** It writes only
+  the compact metrics/action row defined above; evidence and narrative stay in
+  `.claude/agents/WORKFLOW_INSIGHTS.md`.
 - **Does not fix, re-run, or re-verify anything.** Purely observational — a
   retrospective, not a review.
 - **Does not require a `Workflow`-tool run.** Every subagent — plain `Agent`

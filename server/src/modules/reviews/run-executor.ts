@@ -14,6 +14,7 @@ import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 import { IntentService } from '../intent/service.js';
 import { logPromptAssembly } from './prompt-logging.js';
+import { scanForInjectionRisk } from '../_shared/injection-scan.js';
 
 /**
  * Map the persisted `PrIntentRecord` (server-side, includes provider/model/
@@ -275,6 +276,21 @@ export class ReviewRunExecutor {
       }
       const specBodies = specDocs.map((d) => d.body);
       const specsRead = specDocs.map((d) => d.path);
+      // Defense in depth at the last responsible moment: context files are
+      // read fresh for every run, so scan the exact bytes that will reach the
+      // model (an attach-time-only scan would become stale after a file edit).
+      // A heuristic hit is deliberately a warning, not a block: legitimate
+      // security specs may quote attack phrases. The actual trust boundary is
+      // reviewer-core, which wraps every body in <untrusted> and appends its
+      // INJECTION_GUARD. Never log the document body here.
+      for (const doc of specDocs) {
+        const scan = scanForInjectionRisk(doc.body);
+        if (scan.risky) {
+          runLog.info(
+            `SECURITY WARNING: Project context document "${doc.path}" contains a possible prompt-injection pattern (${scan.reason}); treating it as untrusted data`,
+          );
+        }
+      }
       if (specBodies.length > 0) {
         runLog.info(`Project context: ${specBodies.length} document(s) attached`);
       }

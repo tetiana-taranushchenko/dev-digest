@@ -68,7 +68,7 @@ export interface DocumentDetailProps {
 }
 
 /** Full return shape of `useContextAuthoring` — the single state machine
- *  behind the whole `/context` authoring screen (T9). `ContextView` (T11)
+ *  behind the repo-scoped Project Context authoring screen (T9). `ContextView` (T11)
  *  calls the hook once and passes `DocumentDetailProps`-shaped slices down
  *  to `DocumentDetail` (T10); the rest (list selection, toolbar actions,
  *  the confirm dialogs) stays at the shell level. */

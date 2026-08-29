@@ -1,7 +1,7 @@
 ---
 name: implement-plan
-description: Executes an existing implementation-planner Development Plan (docs/plans/**) end to end — implementer(s) per phase (parallel when the plan's Execution Mode is multi-agent), then architecture-reviewer and plan-verifier in parallel, then a bounded iterative fix loop (max-fix rounds, default 3) that maps each finding back to its owning task's Owned paths before fixing, re-checks only what previously failed, and breaks early as "stuck" if the backlog stops shrinking, then one full plan-verifier regression check before doc-writer, reported in a fixed structured template. Does not create the plan — run spec-creator and implementation-planner manually first, this skill only starts once a plan file already exists. test-writer is temporarily excluded from this flow to save tokens; run it by hand when a task's Acceptance genuinely names a new test. Use when the user runs /implement-plan plan:<path> [mode:multi|single] [max-fix:<n>], or asks to "implement the plan", "execute this Development Plan", "run implementer on this plan".
-version: 0.5.0
+description: Executes an existing implementation-planner Development Plan (docs/plans/**) end to end — implementer(s) per phase (parallel when the plan's Execution Mode is multi-agent), then architecture-reviewer and plan-verifier in parallel, then a bounded iterative fix loop (max-fix rounds, default 3) that maps each finding back to its owning task's Owned paths before fixing, re-checks only what previously failed, and breaks early as "stuck" if the backlog stops shrinking, then one full plan-verifier regression check before doc-writer, reported in a fixed structured template. Does not create the spec or plan — run spec-creator and implementation-planner manually first; this skill starts only once an AC-linked plan exists. test-writer is temporarily excluded from this flow to save tokens; run it by hand when a task's Verification genuinely names a new test. Use when the user runs /implement-plan plan:<path> [mode:multi|single] [max-fix:<n>], or asks to "implement the plan", "execute this Development Plan", "run implementer on this plan".
+version: 0.6.0
 ---
 
 # Implement Plan
@@ -23,7 +23,7 @@ spec-creator → implementation-planner        [invoked manually by the user —
 
 **`test-writer` is currently skipped** from this flow — a deliberate
 cost decision (Opus/Sonnet agent-hours add up fast on a course budget). Run
-`test-writer` yourself, standalone, for any task whose Acceptance criterion
+`test-writer` yourself, standalone, for any task whose Verification criterion
 genuinely names a new test.
 
 ## Invocation
@@ -46,9 +46,10 @@ genuinely names a new test.
 ## Process
 
 **Step 1 — Read the plan.** Read the plan file in full. Extract, verbatim,
-into your own working notes: `Execution Mode` (unless overridden by
-`mode:`), every phase's task table (`Task ID`, `Owned paths`, `Depends-on`,
-`Skills to use`, `Acceptance`), and `Testing Strategy`. Do not paraphrase
+into your own working notes: `Source Specification`, `Execution Mode` (unless
+overridden by `mode:`), every phase's task table (`Task ID`, `AC IDs`, `Owned
+paths`, `Depends-on`, `Skills to use`, `Verification`), the `AC Coverage`
+table, and `Testing Strategy`. Do not paraphrase
 these — you carry them into every step below and into each sub-agent's
 brief.
 
@@ -76,8 +77,8 @@ appears in the plan:
   running, waits for the next batch instead.
 - **Single-agent mode:** ignore batching — run every task sequentially, one
   `implementer` call per task ID, in the plan's listed order.
-- Brief each `implementer` call with exactly: the task ID, its `Owned
-  paths`, `Depends-on`, `Skills to use`, `Acceptance`, and the plan's file
+- Brief each `implementer` call with exactly: the task ID, its `AC IDs`,
+  `Owned paths`, `Depends-on`, `Skills to use`, `Verification`, and the plan's file
   path (the sub-agent re-reads its own row from there — the brief just
   points it at the right file and task ID, it doesn't re-explain the whole
   plan).
@@ -94,8 +95,9 @@ appears in the plan:
   `git diff <baseline_head> -- <union of this run's task Owned paths>`
   — this run's own changes only, never a whole-repo audit and never
   whatever else happened to already be on the branch before `baseline_head`.
-- `plan-verifier`, against the plan file and the current branch — its full
-  enumeration, every `REQ-n` and every task row, exactly as it always does.
+- `plan-verifier`, against the plan file, its source spec, and the current
+  branch — its full enumeration, every source `AC-N` and every task row,
+  exactly as it always does.
   Brief it to use `baseline_head` (not its default merge-base) as the
   comparison point for its owned-path check specifically — same reasoning
   as above: with merge-base, a pre-existing, unrelated change already on
@@ -108,7 +110,7 @@ Neither depends on the other's output, so there is no reason to stage them —
 this is the main saving over running them sequentially.
 
 **Step 4 — Bounded fix loop.** Round counter `r` starts at 1. Keep the
-previous round's fix-target set (`file:line`/`REQ`-or-task-id, one identity
+previous round's fix-target set (`file:line`/`AC`-or-task-id, one identity
 per target) to compare against — start it empty.
 
 1. Collect this round's fix targets: `architecture-reviewer`'s `CRITICAL`/
@@ -130,13 +132,15 @@ per target) to compare against — start it empty.
      continue to step 3 below.
 3. **Resolve each fix target to the plan task that owns it**, then spawn one
    `implementer` fix-pass per distinct **task** — briefed the same way as
-   Step 2 (`Task ID`, `Owned paths`, `Depends-on`, `Skills to use`,
-   `Acceptance`, all from Step 1's notes) plus the specific gap to close.
+   Step 2 (`Task ID`, `AC IDs`, `Owned paths`, `Depends-on`, `Skills to use`,
+   `Verification`, all from Step 1's notes) plus the specific gap to close.
    `implementer` only ever works inside a task's declared `Owned paths`
    (`implementer.md`, Boundaries) — a bare `file:line` is not a valid brief
    on its own:
-   - A `plan-verifier` `FAIL`/`PARTIAL` row already names its task directly
-     — use that task's own row.
+   - A task-level `plan-verifier` `FAIL`/`PARTIAL` row already names its task
+     directly — use that task's own row. An AC-level row resolves through the
+     plan's `AC Coverage` table; if several tasks own it, brief each task only
+     for the part its paths and Verification cover.
    - An `architecture-reviewer` finding names a `file:line`, not a task —
      look up which task's `Owned paths` contains that file, from Step 1's
      data, and brief that task's owner with the finding as the gap to close.
@@ -149,7 +153,7 @@ per target) to compare against — start it empty.
    full re-audit / full re-enumeration):
    - `architecture-reviewer` re-checks just those files for the specific
      findings raised, plus anything the fix itself might have introduced.
-   - `plan-verifier` re-checks only the `REQ`/task rows that were `FAIL`/
+   - `plan-verifier` re-checks only the `AC`/task rows that were `FAIL`/
      `PARTIAL` last round — rows that already `PASS`ed in the very first
      Step 3 pass are carried forward unchanged here, never re-derived
      twice **within the loop** (Step 5 below still re-checks them all once).

@@ -12,7 +12,7 @@ import type {
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
-import { scanForInjectionRisk } from '../skills/injection-scan.js';
+import { scanForInjectionRisk } from '../_shared/injection-scan.js';
 import { ValidationError } from '../../platform/errors.js';
 import { RepoRepository } from '../repos/repository.js';
 import { CONTEXT_FOLDERS } from '../repo-intel/constants.js';

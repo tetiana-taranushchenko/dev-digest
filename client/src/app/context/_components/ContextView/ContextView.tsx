@@ -1,4 +1,4 @@
-/* /context — Project Context authoring (T11,
+/* Project Context authoring view (T11,
    `docs/plans/project-context-authoring.md`). The shell + left pane of the
    two-pane master-detail screen: the flat, repo-wide document list (today's
    row metadata — source category, token estimate, used-by, AC-1) stays
@@ -35,10 +35,17 @@ import { useContextAuthoring } from "./useContextAuthoring";
 import { combinedTokenEstimate, formatRefreshedAt, isValidEntryName, sortedDocs } from "./helpers";
 import { s } from "./styles";
 
-export function ContextView() {
+export interface ContextViewProps {
+  /** Canonical repo-scoped route passes this from /repos/:repoId/context.
+   *  The legacy /context entry omits it and falls back to RepoProvider. */
+  repoId?: string;
+}
+
+export function ContextView({ repoId: routeRepoId }: ContextViewProps = {}) {
   const t = useTranslations("context");
   const tCommon = useTranslations("common");
-  const { repoId, reposLoaded } = useActiveRepo();
+  const { repoId: activeRepoId, reposLoaded } = useActiveRepo();
+  const repoId = routeRepoId ?? activeRepoId;
   const query = useContextFiles(repoId);
   const reindex = useReindexContext();
   const authoring = useContextAuthoring(repoId);
@@ -58,8 +65,8 @@ export function ContextView() {
   // here is legitimate even though `useContextAuthoring` (T9) forbids it for
   // its own derived values. Re-registered whenever `isDirty` flips so the
   // listener is only live when there's actually something to lose; there is
-  // no in-app `<Link>` inside this plan's owned paths (`client/src/app/
-  // context/**`) that leaves `/context`, so `requestNavigation` — built for
+  // no in-app `<Link>` inside this view's owned paths (`client/src/app/
+  // context/**`) that leaves Project Context, so `requestNavigation` — built for
   // gating exactly that — currently has no matching call site and stays
   // reserved for if one is added later.
   useEffect(() => {

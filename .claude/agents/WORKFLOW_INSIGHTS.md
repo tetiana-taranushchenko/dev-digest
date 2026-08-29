@@ -4,7 +4,9 @@ Retrospectives on how the custom subagents in `.claude/agents/*.md` actually
 performed when chained together in a session — not about the DevDigest
 product's own code (see each package's `INSIGHTS.md` for that). Written by
 the [`workflow-retro`](../skills/workflow-retro/SKILL.md) skill, manually,
-via `/workflow-retro`. Empty for now — filled in as that skill gets run.
+via `/workflow-retro`. This file keeps the detailed evidence and narrative;
+compact cross-run metrics live in
+[`docs/retros/ledger.md`](../../docs/retros/ledger.md).
 
 ## Recurring Patterns
 
