@@ -44,3 +44,8 @@ Each skill has:
 - `SKILL.md` — Main skill file with rules and conventions (required)
 - `examples.md` — Code examples showing good/bad patterns (recommended)
 - `references.md` — Sources and rationale (optional)
+- `evals/` — Test suite proving the skill catches what it claims to (optional, recommended when the skill's job is checkable — e.g. flagging specific violations):
+  - `fixtures/` — draft code with real violations planted on purpose, with no comments calling them out (so a review's output reflects genuine detection, not a spoiler)
+  - `eval.md` — the scenarios: one prompt + which fixture files go with it, per case
+  - `expected-findings.json` — the answer key: exact `file` + `line` + which `SKILL.md` rule each planted violation breaks, so a review can be graded by matching lines instead of eyeballing prose
+  - See [`onion-architecture/evals/`](onion-architecture/evals/) for a worked example

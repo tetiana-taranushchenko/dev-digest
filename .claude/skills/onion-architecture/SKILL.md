@@ -92,6 +92,20 @@ truth; update it whenever a module is added or graduates.
   that's a signal it belongs in a `service.ts` (application ring) that calls the
   domain function, not in the domain function itself.
 
+## Shared Contracts Stay Outward-Free (CRITICAL)
+
+- `@devdigest/shared` (`server/src/vendor/shared/`, mirrored at
+  `client/src/vendor/shared/`) is part of the Domain ring, same as `reviewer-core` —
+  it never imports a type from `server/src/db`, `server/src/adapters`,
+  `server/src/modules`, or any Fastify/Drizzle type. A contract is a Zod schema (+
+  its inferred type) that both server and client can depend on; it must not itself
+  depend on either.
+- If a contract needs a field shaped like a DB row, shape it inline in the contract
+  (or import from another `@devdigest/shared` contract file) — never reach into
+  `server/src/db/rows.ts` for it. A contract that embeds a raw row type quietly
+  couples every consumer of `@devdigest/shared` (including the client) to the
+  server's Drizzle schema.
+
 ## Graduated Layering by Module Complexity (HIGH)
 
 - Not every module needs the full `routes → service → repository` split. Use this
@@ -132,6 +146,19 @@ truth; update it whenever a module is added or graduates.
   layer and Drizzle. `service.ts` depends on that function surface, never on
   `db`/`schema` directly — this is the dependency-inversion mechanism that makes
   services unit-testable without a real database.
+
+## Repository Export Boundaries (HIGH)
+
+- `repository.ts` must export **DTO types** (application-layer shapes like
+  `InsertUser`, `UpdateUser`, `UserResponse`), never raw Drizzle-inferred types
+  (`typeof t.users.$inferSelect`). A raw Drizzle type leaked from `repository.ts`
+  couples every importer (including tests, service code, even other modules via
+  re-exports) to the current DB schema — a change to the schema breaks all those
+  consumers unnecessarily. DTOs act as the anti-corruption layer: they let the
+  service and tests code against a stable interface while the schema evolves.
+- If `repository.ts` re-exports a Drizzle type for use in the module, document
+  why (rare; valid only when there's no DTO alternative, e.g. a raw-row
+  pass-through for admin tools). Otherwise, wrap it in a DTO.
 
 ## Composition Root (MEDIUM)
 
