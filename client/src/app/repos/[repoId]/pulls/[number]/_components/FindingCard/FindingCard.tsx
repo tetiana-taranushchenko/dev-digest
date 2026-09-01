@@ -17,7 +17,9 @@ import {
   type Severity,
   type Category,
 } from "@devdigest/ui";
-import type { FindingRecord, FindingActionKind } from "@devdigest/shared";
+import type { FindingRecord, FindingActionKind, EvalCaseInput } from "@devdigest/shared";
+import { EvalCaseEditor } from "../../../../../../../components/eval-case-editor/EvalCaseEditor";
+import { useEvalSeed } from "../../../../../../../lib/hooks/eval";
 import { SEV_COLOR, SEV_COLOR_FALLBACK } from "./constants";
 import { lineLabel } from "./helpers";
 import { githubBlobUrl } from "../../../../../../../lib/github-urls";
@@ -49,6 +51,11 @@ export function FindingCard({
   React.useEffect(() => {
     if (forceExpanded) setExpanded(true);
   }, [forceExpanded]);
+  const [evalSeed, setEvalSeed] = React.useState<EvalCaseInput | null>(null);
+  const seedEvalCase = useEvalSeed();
+  const handleTurnIntoEvalCase = () => {
+    seedEvalCase.mutate(f.id, { onSuccess: (seed) => setEvalSeed(seed) });
+  };
   const sevColor = SEV_COLOR[f.severity] ?? SEV_COLOR_FALLBACK;
   const fileHref =
     repoFullName && headSha
@@ -116,9 +123,25 @@ export function FindingCard({
             >
               {t("finding.dismiss")}
             </Button>
+            <Button
+              kind="ghost"
+              size="sm"
+              icon="FlaskConical"
+              disabled={seedEvalCase.isPending}
+              onClick={handleTurnIntoEvalCase}
+              title={
+                dismissed
+                  ? t("finding.turnIntoEvalCaseDismissedTitle")
+                  : t("finding.turnIntoEvalCaseTitle")
+              }
+            >
+              {t("finding.turnIntoEvalCase")}
+            </Button>
           </div>
         </div>
       )}
+
+      {evalSeed && <EvalCaseEditor seed={evalSeed} onClose={() => setEvalSeed(null)} />}
     </div>
   );
 }

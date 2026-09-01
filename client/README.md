@@ -27,15 +27,17 @@ flowchart TD
   ONB["/onboarding<br/>add repo"] -->|"POST /repos"| API[("Fastify API")]
   PULLS --> PR["/pulls/:number<br/>review detail<br/>(overview · diff · findings)"]
 
-  AGENTS["/agents"] --> AGENT["/agents/:id<br/>editor (config)"]
+  AGENTS["/agents"] --> AGENT["/agents/:id<br/>editor (config · skills · context · evals)"]
   CONTEXT["/repos/:repoId/context<br/>Project Context"]
   SETTINGS["/settings/:section<br/>API keys · models"]
+  EVAL["/eval<br/>Eval Dashboard<br/>(overview → owner detail → compare)"]
 
   PULLS -->|"GET /repos/:id/pulls · /repos/:id/index-state"| API
   PR -->|"GET /pulls/:id · /pulls/:id/blast · /reviews · /pulls/:id/comments<br/>POST /pulls/:id/review · /findings/:id/(accept|dismiss)"| API
   AGENTS -->|"/agents · /agents/:id"| API
   CONTEXT -->|"GET /repos/:id/context<br/>POST /repos/:id/context/reindex"| API
   SETTINGS -->|"/settings · /providers"| API
+  EVAL -->|"GET /eval-dashboard(/overview) · /eval-cases<br/>POST /eval-cases/run-all"| API
 ```
 
 Cross-cutting chrome lives in `src/components/app-shell` (nav, breadcrumbs,
@@ -110,6 +112,63 @@ Review Focus items reuse the existing `?tab=diff&file=&line=` deep link
 `buildDiffLineRoute`) when the cited file is part of this PR's diff, and
 show a non-navigating "not in this PR's diff" message otherwise
 (`ReviewFocusPanel.tsx:26-32`).
+
+### Eval Dashboard (`/eval`)
+
+`app/eval/page.tsx` is a thin state holder, not a placeholder: it renders
+`EvalOverview` until a row is selected, then swaps to `EvalOwnerDetail` for
+that owner, clearing back to the overview on "back"
+(`app/eval/page.tsx:19-37`). Reachable from the existing SKILLS LAB →
+"Eval Dashboard" nav entry (`src/vendor/ui/nav.ts:35`, untouched).
+
+- **`EvalOverview`** (`_components/EvalOverview/EvalOverview.tsx:36-122`) —
+  one row per agent/skill owner via `useEvalOverview()`
+  (`GET /eval-dashboard/overview`), each with its latest run timestamp, pass
+  count, and Recall/Precision/Citation; "Run all agents" shows a confirmation
+  naming the total runnable case count before firing a workspace-wide bulk
+  run.
+- **`EvalOwnerDetail`** (`_components/EvalOwnerDetail/EvalOwnerDetail.tsx:37-111`)
+  — one owner's regression alert banner (when present), a metric card per
+  metric with its delta, the trend chart, and a recent-runs table; selecting
+  exactly two runs enables "Compare".
+- **`CompareRunsModal`** (`_components/CompareRunsModal/CompareRunsModal.tsx:50-130`)
+  — per-metric old→new deltas (Recall/Precision/Citation/Cost) plus a
+  system-prompt diff read from the two selected runs' matched
+  `agent_versions` snapshots (existing `GET /agents/:id/versions`, no new
+  endpoint). "Promote" confirms, then calls `PUT /agents/:id` with the newer
+  snapshot's config followed by `POST /agents/:id/skills` with its
+  linked-skill set (`CompareRunsModal.tsx:63-81`) — two calls, since
+  `PUT /agents/:id` doesn't accept a `skills` field.
+
+Data hooks for all of the above live in `src/lib/hooks/eval.ts`
+(`useEvalCases`, `useEvalCase`, `useRunEvalCase`, `useRunAllEvals` +
+`useBulkRunStatus` polling, `useEvalDashboard`, `useEvalOverview`,
+`useEvalSeed`, …), mirroring the `useSmartDiff`/`useQuery` shape.
+
+### Evals tab (Agent Editor + Skill Editor)
+
+Both `AgentEditor` (`app/agents/[id]/_components/AgentEditor/AgentEditor.tsx:54-55`)
+and `SkillEditor` (`app/skills/[id]/_components/SkillEditor/SkillEditor.tsx:59`)
+add an `evals` tab that renders the shared
+`components/eval-tab/EvalsTab/EvalsTab.tsx:43-157` — a metric strip, the
+owner's case list in exactly one of passing / failing / never-run, per-case
+run + edit controls, and "Run all evals", all disabled while a run is
+already in flight for that owner. A skill's Evals tab runs its cases through
+whichever currently-enabled agent has that skill linked; with none linked,
+running is disabled and shows a "Link this skill to an agent" hint
+(`SkillEditor.tsx:22-41`). Both editors open the shared
+`components/eval-case-editor/EvalCaseEditor` for "New eval case" and each
+case's edit control.
+
+### "Turn into eval case" (FindingCard)
+
+The expanded `FindingCard` action row
+(`app/repos/[repoId]/pulls/[number]/_components/FindingCard/FindingCard.tsx:105-140`)
+adds a third ghost button next to Accept and Dismiss. It calls
+`useEvalSeed()` (`POST /findings/:id/eval-seed`) and, on success, opens
+`EvalCaseEditor` pre-filled with the returned `EvalCaseInput`
+(`FindingCard.tsx:54-58,144`) — an independent action, not a new member of
+`FindingActionKind`.
 
 ## Testing
 

@@ -42,6 +42,7 @@
     "inputLabel": "Input",
     "tabs": {
       "diff": "Diff",
+      "files": "Files",
       "prMeta": "PR meta"
     },
     "diffPlaceholder": "--- a/src/config.ts\n+++ b/src/config.ts\n@@ -10,6 +10,7 @@\n+  stripeKey: \"sk_live_...\"",
@@ -55,7 +56,15 @@
     "invalidJson": "invalid JSON",
     "lastRunPassed": "Last run passed",
     "lastRunFailed": "Last run failed",
-    "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s"
+    "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s",
+    "runOnSave": "Run on save",
+    "ownerRequired": "Choose an owner before saving.",
+    "owner": {
+      "label": "Owner",
+      "kindAgent": "Agent",
+      "kindSkill": "Skill",
+      "selectPlaceholder": "Select an owner…"
+    }
   },
   "evalsTab": {
     "metricsTitle": "Eval metrics",
