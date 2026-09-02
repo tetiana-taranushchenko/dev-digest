@@ -9,6 +9,7 @@ import { useAgents } from "../../../lib/hooks/agents";
 import { useSkills } from "../../../lib/hooks/skills";
 import { InputTabs } from "./_components/InputTabs";
 import { ExpectedOutputEditor } from "./_components/ExpectedOutputEditor";
+import { ActualOutputViewer } from "./_components/ActualOutputViewer";
 import { RunOnSaveResult } from "./_components/RunOnSaveResult";
 import {
   buildInputMeta,
@@ -64,6 +65,12 @@ export function EvalCaseEditor({ seed, caseId, onClose }: EvalCaseEditorProps) {
   const [activeTab, setActiveTab] = React.useState<InputTabKey>("diff");
   const [runOnSaveOn, setRunOnSaveOn] = React.useState(false);
   const [lastRun, setLastRun] = React.useState<EvalRun | null>(null);
+  const [justSaved, setJustSaved] = React.useState(false);
+  const justSavedTimeout = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Clears itself so a later save (or unmount) doesn't leave a stale timer
+  // flipping `justSaved` back off after the editor's moved on.
+  React.useEffect(() => () => clearTimeout(justSavedTimeout.current), []);
 
   // Sync local form state once an existing case loads (edit flow) — mirrors
   // AgentEditor's ConfigTab reset-on-identity-change pattern
@@ -114,6 +121,9 @@ export function EvalCaseEditor({ seed, caseId, onClose }: EvalCaseEditorProps) {
       const result = await runCase.mutateAsync(saved.id);
       setLastRun(result.result);
     }
+    setJustSaved(true);
+    clearTimeout(justSavedTimeout.current);
+    justSavedTimeout.current = setTimeout(() => setJustSaved(false), 2000);
   };
 
   const runNow = async () => {
@@ -126,7 +136,7 @@ export function EvalCaseEditor({ seed, caseId, onClose }: EvalCaseEditorProps) {
     <Modal
       title={resolvedCaseId ? t("caseEditor.caseTitle", { name: loadedCase?.name ?? name }) : t("caseEditor.newCase")}
       onClose={onClose}
-      width={960}
+      width={1200}
       footer={
         <div style={s.footer}>
           <label style={s.runOnSaveLabel}>
@@ -140,22 +150,34 @@ export function EvalCaseEditor({ seed, caseId, onClose }: EvalCaseEditorProps) {
             <Button
               kind="secondary"
               icon="Play"
+              loading={runCase.isPending}
               onClick={runNow}
-              disabled={!resolvedCaseId || runCase.isPending}
+              disabled={!resolvedCaseId || runCase.isPending || saving}
             >
               {runCase.isPending ? t("caseEditor.running") : t("caseEditor.runCase")}
             </Button>
-            <Button kind="primary" icon="Check" onClick={save} disabled={!expectedValid || ownerMissing || saving}>
-              {saving ? t("caseEditor.saving") : t("caseEditor.save")}
+            <Button
+              kind="primary"
+              icon="Check"
+              loading={saving}
+              style={justSaved ? s.saveSuccess : undefined}
+              onClick={save}
+              disabled={!expectedValid || ownerMissing || saving || runCase.isPending}
+            >
+              {saving ? t("caseEditor.saving") : justSaved ? t("caseEditor.saved") : t("caseEditor.save")}
             </Button>
           </div>
         </div>
       }
     >
       <div style={s.body}>
-        <FormField label={t("caseEditor.nameLabel")} required>
+        <div style={s.nameField}>
+          <div style={s.nameFieldLabel}>
+            {t("caseEditor.nameLabel")}
+            <span style={s.requiredMark}>*</span>
+          </div>
           <TextInput value={name} onChange={setName} placeholder={t("caseEditor.namePlaceholder")} />
-        </FormField>
+        </div>
 
         {ownerMissing && (
           <FormField label={t("caseEditor.owner.label")}>
@@ -186,24 +208,29 @@ export function EvalCaseEditor({ seed, caseId, onClose }: EvalCaseEditorProps) {
           </FormField>
         )}
 
-        <FormField label={t("caseEditor.inputLabel")}>
-          <InputTabs
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            diff={inputDiff}
-            onDiffChange={setInputDiff}
-            filesText={inputFilesText}
-            onFilesChange={setInputFilesText}
-            metaTitle={metaTitle}
-            onMetaTitleChange={setMetaTitle}
-            metaBody={metaBody}
-            onMetaBodyChange={setMetaBody}
-            metaPreview={metaPreview}
-            onMetaPreviewToggle={() => setMetaPreview((v) => !v)}
-          />
-        </FormField>
+        <div style={s.columns}>
+          <FormField label={t("caseEditor.inputLabel")}>
+            <InputTabs
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              diff={inputDiff}
+              onDiffChange={setInputDiff}
+              filesText={inputFilesText}
+              onFilesChange={setInputFilesText}
+              metaTitle={metaTitle}
+              onMetaTitleChange={setMetaTitle}
+              metaBody={metaBody}
+              onMetaBodyChange={setMetaBody}
+              metaPreview={metaPreview}
+              onMetaPreviewToggle={() => setMetaPreview((v) => !v)}
+            />
+          </FormField>
 
-        <ExpectedOutputEditor value={expectedOutputText} onChange={setExpectedOutputText} valid={expectedValid} />
+          <div style={s.rightColumn}>
+            <ExpectedOutputEditor value={expectedOutputText} onChange={setExpectedOutputText} valid={expectedValid} />
+            <ActualOutputViewer result={lastRun} />
+          </div>
+        </div>
 
         <RunOnSaveResult result={lastRun} />
       </div>

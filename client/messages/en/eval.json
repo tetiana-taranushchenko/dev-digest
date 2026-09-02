@@ -14,11 +14,6 @@
       "precision": "PRECISION",
       "citationAccuracy": "CITATION ACCURACY"
     },
-    "legend": {
-      "recall": "Recall",
-      "precision": "Precision",
-      "citation": "Citation"
-    },
     "table": {
       "ranAt": "Ran at",
       "recall": "Recall",
@@ -37,6 +32,7 @@
     "running": "Running…",
     "save": "Save",
     "saving": "Saving…",
+    "saved": "Saved",
     "nameLabel": "Name",
     "namePlaceholder": "stripe-key-leak",
     "inputLabel": "Input",
@@ -54,6 +50,8 @@
     "expectedOutput": "Expected output",
     "validJson": "valid JSON",
     "invalidJson": "invalid JSON",
+    "actualOutput": "Actual output",
+    "neverRunYet": "Never run yet",
     "lastRunPassed": "Last run passed",
     "lastRunFailed": "Last run failed",
     "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s",
@@ -80,7 +78,9 @@
     "run": "Run",
     "running": "Running…",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "deleteTitle": "Delete eval case?",
+    "deleteConfirm": "Delete eval case \"{name}\"? This cannot be undone."
   },
   "page": {
     "crumbSkillsLab": "Skills Lab",

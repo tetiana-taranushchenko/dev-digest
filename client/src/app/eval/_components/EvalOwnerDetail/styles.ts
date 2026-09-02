@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
  *  `client/INSIGHTS.md`'s colocation rule; mirrors
  *  `EvalOverview/styles.ts` + `EvalsTab/styles.ts`). */
 export const s = {
-  page: { padding: "24px 32px 44px", maxWidth: 1000, margin: "0 auto" } satisfies CSSProperties,
+  page: { padding: "24px 32px 44px" } satisfies CSSProperties,
   back: {
     display: "inline-flex",
     alignItems: "center",
@@ -46,10 +46,7 @@ export const s = {
   metricsRow: { display: "flex", gap: 14, marginBottom: 20 } satisfies CSSProperties,
 
   trendCard: { marginBottom: 20 } satisfies CSSProperties,
-  trendHeader: { display: "flex", alignItems: "center", gap: 16, marginBottom: 12 } satisfies CSSProperties,
-  legend: { marginLeft: "auto", display: "flex", gap: 14, fontSize: 11.5 } satisfies CSSProperties,
-  legendItem: { display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-secondary)" } satisfies CSSProperties,
-  legendSwatch: { width: 10, height: 2, borderRadius: 2 } satisfies CSSProperties,
+  trendHeader: { display: "flex", alignItems: "center", marginBottom: 12 } satisfies CSSProperties,
 
   runsHeaderRow: { display: "flex", alignItems: "center", gap: 10, marginBottom: 4 } satisfies CSSProperties,
   runsHint: { fontSize: 11.5, color: "var(--text-muted)" } satisfies CSSProperties,

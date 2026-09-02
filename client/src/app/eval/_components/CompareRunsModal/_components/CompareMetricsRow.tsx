@@ -25,6 +25,13 @@ function MetricCompareCard({
   const delta = oldValue != null && newValue != null ? newValue - oldValue : null;
   const format = (v: number | null) => (isPercent ? (v == null ? "—" : `${pct(v)}%`) : formatCost(v));
 
+  // Always shown once both values exist — flat (`/`), not just up/down —
+  // same "flat gets its own symbol, not hidden" convention as the dashboard
+  // metric cards' `Icon.Slash` delta (`MetricStrip.tsx`).
+  const flat = delta != null && Math.abs(delta) <= 0.0001;
+  const deltaText =
+    delta == null ? null : isPercent ? `${Math.abs(Math.round(delta * 100))}pt` : `$${Math.abs(delta).toFixed(4)}`;
+
   return (
     <div style={s.metricCard}>
       <div style={s.metricLabel}>{label}</div>
@@ -36,10 +43,13 @@ function MetricCompareCard({
         <span className="tnum" style={{ ...s.metricNew, color }}>
           {format(newValue)}
         </span>
-        {delta != null && Math.abs(delta) > 0.0001 && (
-          <span className="tnum" style={{ ...s.metricDelta, color: delta >= 0 ? "var(--ok)" : "var(--crit)" }}>
-            {delta >= 0 ? "▲ " : "▼ "}
-            {isPercent ? `${Math.abs(Math.round(delta * 100))}pt` : Math.abs(delta).toFixed(2)}
+        {deltaText != null && (
+          <span
+            className="tnum"
+            style={{ ...s.metricDelta, color: flat ? "var(--text-muted)" : delta! > 0 ? "var(--ok)" : "var(--crit)" }}
+          >
+            {flat ? "/ " : delta! > 0 ? "▲ " : "▼ "}
+            {deltaText}
           </span>
         )}
       </div>

@@ -28,3 +28,26 @@ export const LINK_AGENT_HINT = "Link this skill to an agent to run its evals.";
 export function passCountLabel(passing: number, total: number): string {
   return `${passing} / ${total} passing`;
 }
+
+/** Header above the metric strip — matches the design reference's
+ *  `screen_agents-evals-tab.jsx` "EVAL METRICS" section label. */
+export const METRICS_HEADING = "EVAL METRICS";
+
+/** Scoring explainer under the metric strip — verbatim per the design
+ *  reference/mockup (`scorer.ts`'s own doc comment quotes the same line). */
+export const SCORING_EXPLAINER = "Scoring is mechanical — a finding counts when file matches and line ranges overlap. No model call in the scorer.";
+
+/** Link to the cross-owner Eval Dashboard (`/eval`) — top-right of the
+ *  metric strip, per the design reference. */
+export const VIEW_FULL_DASHBOARD_LABEL = "View full dashboard";
+
+/** Case-kind badges — `must_find` (a positive case, from an accepted
+ *  finding) vs `must_not_flag` (a negative case, from a dismissed one). */
+export const MUST_FIND_LABEL = "MUST FIND";
+export const MUST_NOT_FLAG_LABEL = "MUST NOT FLAG";
+
+/** "expected N finding(s), got M" — the per-case detail line under the
+ *  pass/fail state (only shown once a case has a latest run). */
+export function expectedGotLabel(expected: number, got: number): string {
+  return `expected ${expected} finding${expected === 1 ? "" : "s"}, got ${got}`;
+}

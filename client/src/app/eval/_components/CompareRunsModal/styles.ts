@@ -9,10 +9,12 @@ export const s = {
   metricsRow: { display: "flex", gap: 12, marginBottom: 18 } satisfies CSSProperties,
   metricCard: {
     flex: 1,
+    minWidth: 0,
     padding: "12px 14px",
     borderRadius: 9,
     border: "1px solid var(--border)",
     background: "var(--bg-elevated)",
+    overflow: "hidden",
   } satisfies CSSProperties,
   metricLabel: {
     fontSize: 10,
@@ -22,10 +24,16 @@ export const s = {
     textTransform: "uppercase",
     marginBottom: 8,
   } satisfies CSSProperties,
-  metricValues: { display: "flex", alignItems: "baseline", gap: 8 } satisfies CSSProperties,
-  metricOld: { fontSize: 15, color: "var(--text-muted)" } satisfies CSSProperties,
-  metricNew: { fontSize: 21, fontWeight: 700 } satisfies CSSProperties,
-  metricDelta: { fontSize: 11.5, fontWeight: 600 } satisfies CSSProperties,
+  /* `nowrap` deliberately — the 4-decimal cost values (`$0.0007`) run
+   * longer than the 2-decimal placeholders in the design reference; letting
+   * this row wrap pushed the delta onto a second line that spilled below
+   * the card's own border instead of growing it (a real layout bug, not
+   * just a cosmetic mismatch). `metricCard.overflow: hidden` below is the
+   * backstop if a card ever gets one number longer than this still fits. */
+  metricValues: { display: "flex", alignItems: "baseline", gap: 5, flexWrap: "nowrap" } satisfies CSSProperties,
+  metricOld: { fontSize: 12.5, color: "var(--text-muted)", whiteSpace: "nowrap" } satisfies CSSProperties,
+  metricNew: { fontSize: 14, fontWeight: 700, whiteSpace: "nowrap" } satisfies CSSProperties,
+  metricDelta: { fontSize: 11, fontWeight: 600, marginLeft: 1, whiteSpace: "nowrap" } satisfies CSSProperties,
 
   legendRow: {
     display: "flex",

@@ -79,6 +79,19 @@ export const s = {
     marginTop: 14,
     flexWrap: "wrap",
   } satisfies CSSProperties,
+  // `Button`'s `active` prop only styles `kind="tertiary"` — Accept/Dismiss use
+  // `secondary`/`ghost`, so an explicit `style` override is the only way to
+  // show which action was taken (otherwise clicking looks like it did nothing).
+  acceptActive: {
+    background: "var(--ok-bg)",
+    color: "var(--ok)",
+    borderColor: "var(--ok)",
+  } satisfies CSSProperties,
+  dismissActive: {
+    background: "var(--bg-hover)",
+    color: "var(--text-primary)",
+    borderColor: "var(--border-strong)",
+  } satisfies CSSProperties,
   composer: {
     marginTop: 12,
     display: "flex",

@@ -164,15 +164,9 @@ describe("EvalOwnerDetail", () => {
     // an svg — the observable proxy for "a chart is drawn" in jsdom.
     expect(container.querySelectorAll("svg").length).toBeGreaterThan(0);
 
-    // The metric trend chart, with its legend. Scoped via `within` because
-    // the legend's item labels are byte-identical to the recent-runs
-    // table's column headers rendered lower on the same page (both say
-    // "Recall"/"Citation" — see `dashboard.legend.*` vs `dashboard.table.*`
-    // in messages/en/eval.json).
+    // The metric trend chart — no legend (each series already keys to its
+    // own MetricCard above).
     expect(screen.getByText("Metric trend")).toBeInTheDocument();
-    const legend = within(screen.getByTestId("trend-legend"));
-    expect(legend.getByText("Recall")).toBeInTheDocument();
-    expect(legend.getByText("Citation")).toBeInTheDocument();
 
     // The recent-runs table — one row per `recent_runs` entry.
     expect(screen.getByText("Recent runs")).toBeInTheDocument();

@@ -71,10 +71,10 @@ export function pct(fraction: number): number {
   return Math.round(fraction * 100);
 }
 
-/** `null`/`undefined` cost -> em dash, else `$X.XX` — same convention as
+/** `null`/`undefined` cost -> em dash, else `$X.XXXX` — same convention as
  *  `EvalOwnerDetail/helpers.ts`'s `formatCost`. */
 export function formatCost(costUsd: number | null | undefined): string {
-  return costUsd == null ? "—" : `$${costUsd.toFixed(2)}`;
+  return costUsd == null ? "—" : `$${costUsd.toFixed(4)}`;
 }
 
 /**

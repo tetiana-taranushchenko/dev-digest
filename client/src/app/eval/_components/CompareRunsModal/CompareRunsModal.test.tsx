@@ -104,9 +104,9 @@ describe("CompareRunsModal", () => {
     expect(screen.getByText("91%")).toBeInTheDocument();
     expect(screen.getByText("95%")).toBeInTheDocument();
 
-    // Cost $0.04 -> $0.05.
-    expect(screen.getByText("$0.04")).toBeInTheDocument();
-    expect(screen.getByText("$0.05")).toBeInTheDocument();
+    // Cost $0.0400 -> $0.0500.
+    expect(screen.getByText("$0.0400")).toBeInTheDocument();
+    expect(screen.getByText("$0.0500")).toBeInTheDocument();
 
     // System-prompt diff — a removed-only word (old snapshot) and an
     // added-only word (new snapshot) from the two config snapshots.

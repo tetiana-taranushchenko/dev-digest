@@ -92,7 +92,7 @@ export function CompareRunsModal({ runs, versions, onClose }: CompareRunsModalPr
         />
       )}
       <Modal
-        width={960}
+        width={1040}
         onClose={onClose}
         title={compareTitle(oldSnapshot?.version, newSnapshot?.version)}
         subtitle={COMPARE_SUBTITLE}

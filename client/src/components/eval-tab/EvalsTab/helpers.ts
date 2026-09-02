@@ -68,3 +68,62 @@ export function newCaseSeed(ownerKind: EvalOwnerKind, ownerId: string): EvalCase
     expected_output: [],
   };
 }
+
+// ===========================================================================
+// Case-kind / display-name / produced-count — read-only derivations over the
+// same `expected_output`/`actual_output` shapes `scorer.ts` (server) already
+// defines (`ExpectedFinding[]`, `{ produced: Finding[] }`). Kept `unknown`-safe
+// here since the client contract types both fields as `z.unknown()`.
+// ===========================================================================
+
+interface ExpectedFindingLike {
+  file?: unknown;
+  start_line?: unknown;
+  end_line?: unknown;
+  title?: unknown;
+  severity?: unknown;
+  category?: unknown;
+}
+
+/** Safe parse of a case's `expected_output` — `[]` for anything that isn't a
+ *  JSON array (never throws; scoring's own validation is the source of
+ *  truth for whether a case is runnable at all). */
+export function parseExpectedFindings(evalCase: Pick<EvalCase, "expected_output">): ExpectedFindingLike[] {
+  return Array.isArray(evalCase.expected_output) ? (evalCase.expected_output as ExpectedFindingLike[]) : [];
+}
+
+export type EvalCaseKind = "must_find" | "must_not_flag";
+
+/** A case's `expected_output` empty ⇒ negative (`must_not_flag`, a dismissed
+ *  finding); non-empty ⇒ positive (`must_find`) — mirrors the server's own
+ *  seeding split (`server/src/modules/eval/helpers.ts`'s
+ *  `buildExpectedOutputFromFinding`), re-derived here since the client only
+ *  gets the resulting JSON, not the original `dismissedAt` flag. */
+export function caseKindOf(evalCase: Pick<EvalCase, "expected_output">): EvalCaseKind {
+  return parseExpectedFindings(evalCase).length > 0 ? "must_find" : "must_not_flag";
+}
+
+/** Best-effort human label for a seeded case: prefer the finding `title`
+ *  carried in `expected_output[0]` (exact, `must_find` cases only — see
+ *  `buildExpectedOutputFromFinding`); otherwise de-slugify the seeded
+ *  `must-find-`/`no-` name. Falls back to the raw name for a manually
+ *  authored case (no recognizable seed prefix). */
+export function caseDisplayName(evalCase: Pick<EvalCase, "name" | "expected_output">): string {
+  const [first] = parseExpectedFindings(evalCase);
+  if (typeof first?.title === "string" && first.title.length > 0) {
+    return `From finding: ${first.title}`;
+  }
+  const deslugged = evalCase.name.match(/^(?:must-find|no)-(.+)$/);
+  if (!deslugged) return evalCase.name;
+  const words = deslugged[1]!.replace(/-/g, " ");
+  return `From finding: ${words.charAt(0).toUpperCase()}${words.slice(1)}`;
+}
+
+/** Number of findings a run actually produced — reads
+ *  `EvalActualOutput.produced` (`server/src/modules/eval/scorer.ts`'s
+ *  `buildActualOutput`) defensively, since the client contract types
+ *  `actual_output` as `z.unknown()` and a never-run case has `null` here. */
+export function producedCountOf(run: EvalRunRecord | undefined): number | undefined {
+  const produced = (run?.actual_output as { produced?: unknown } | null | undefined)?.produced;
+  return Array.isArray(produced) ? produced.length : undefined;
+}

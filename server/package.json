@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "verify:l03": "vitest run test/smart-diff-classify.test.ts",
+    "verify:l06": "vitest run --exclude '**/*.it.test.ts' src/modules/eval/scorer.test.ts src/modules/eval/dashboard.test.ts src/modules/eval/run-tracker.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts"

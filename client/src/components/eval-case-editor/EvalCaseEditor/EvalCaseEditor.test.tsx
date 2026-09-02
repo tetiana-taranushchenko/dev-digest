@@ -92,10 +92,15 @@ const SEEDED_INPUT: EvalCaseInput = {
  * is identical — a jsdom/testing-library quirk, not a component bug).
  * Textareas render in a fixed order — the active Input-tab textarea (Diff,
  * Files, or PR meta's Body) always precedes the Expected output one — so
- * index into the container and assert `.value` directly with `toHaveValue`.
+ * index into them and assert `.value` directly with `toHaveValue`.
+ *
+ * Queries `document.body` rather than RTL's `container`: the Modal portals
+ * its content to `document.body` (fixes it being clipped by any ancestor
+ * with `overflow: hidden`), so it renders as a sibling of `container`, not
+ * a descendant.
  */
-function getTextareas(container: HTMLElement): HTMLTextAreaElement[] {
-  return Array.from(container.querySelectorAll("textarea"));
+function getTextareas(): HTMLTextAreaElement[] {
+  return Array.from(document.body.querySelectorAll("textarea"));
 }
 
 afterEach(() => {
@@ -107,18 +112,18 @@ afterEach(() => {
 
 describe("EvalCaseEditor", () => {
   it("renders Diff / Files / PR meta input views and an Expected output editor", () => {
-    const { container } = renderEditor({ seed: SEEDED_INPUT });
+    renderEditor({ seed: SEEDED_INPUT });
 
     // Expected output editor is present with a valid-JSON indicator.
     expect(screen.getByText(evalMessages.caseEditor.expectedOutput)).toBeInTheDocument();
     expect(screen.getByText(evalMessages.caseEditor.validJson)).toBeInTheDocument();
 
     // Diff view is active by default, showing the seeded diff text.
-    expect(getTextareas(container)[0]).toHaveValue(SEEDED_INPUT.input_diff);
+    expect(getTextareas()[0]).toHaveValue(SEEDED_INPUT.input_diff);
 
     // Switching to Files clears that textarea's value (its own, empty `input_files`).
     fireEvent.click(screen.getByRole("button", { name: evalMessages.caseEditor.tabs.files }));
-    expect(getTextareas(container)[0]).toHaveValue("");
+    expect(getTextareas()[0]).toHaveValue("");
 
     // Switching to PR meta shows the structured Title/Body fields.
     fireEvent.click(screen.getByRole("button", { name: evalMessages.caseEditor.tabs.prMeta }));
@@ -127,10 +132,10 @@ describe("EvalCaseEditor", () => {
   });
 
   it("marks invalid JSON in Expected output and blocks Save", () => {
-    const { container } = renderEditor({ seed: SEEDED_INPUT });
+    renderEditor({ seed: SEEDED_INPUT });
 
     // Diff tab is active by default — index 1 is the Expected output textarea.
-    const expectedTextarea = getTextareas(container)[1]!;
+    const expectedTextarea = getTextareas()[1]!;
     fireEvent.change(expectedTextarea, { target: { value: "{not valid json" } });
 
     // Badge + inline alert both announce the invalid state.
@@ -154,10 +159,10 @@ describe("EvalCaseEditor", () => {
   });
 
   it("pre-fills from a passed-in seed prop", () => {
-    const { container } = renderEditor({ seed: SEEDED_INPUT });
+    renderEditor({ seed: SEEDED_INPUT });
 
     expect(screen.getByDisplayValue(SEEDED_INPUT.name)).toBeInTheDocument();
-    const textareas = getTextareas(container);
+    const textareas = getTextareas();
     expect(textareas[0]).toHaveValue(SEEDED_INPUT.input_diff);
     expect(textareas[1]).toHaveValue(JSON.stringify(SEEDED_INPUT.expected_output, null, 2));
     // Owner is already resolved from the seed — no owner prompt.

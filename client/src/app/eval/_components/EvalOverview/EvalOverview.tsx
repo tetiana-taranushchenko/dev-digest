@@ -88,6 +88,7 @@ export function EvalOverview({
           <Button
             kind="primary"
             icon="Play"
+            loading={running}
             onClick={() => setConfirming(true)}
             disabled={running || totalCases === 0}
           >

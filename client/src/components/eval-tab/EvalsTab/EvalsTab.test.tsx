@@ -124,12 +124,14 @@ let bulkStatus: EvalBatchState | undefined;
 
 const runCaseMutateAsync = vi.fn();
 const runAllMutateAsync = vi.fn();
+const deleteCaseMutate = vi.fn();
 
 vi.mock("../../../lib/hooks/eval", () => ({
   useEvalCases: () => ({ data: currentCases, isLoading: false }),
   useEvalDashboard: () => ({ data: currentDashboard }),
   useRunEvalCase: () => ({ mutateAsync: runCaseMutateAsync, isPending: false }),
   useRunAllEvals: () => ({ mutateAsync: runAllMutateAsync, isPending: false }),
+  useDeleteEvalCase: () => ({ mutate: deleteCaseMutate, isPending: false }),
   useBulkRunStatus: (batchId: string | null | undefined) => ({ data: batchId ? bulkStatus : undefined }),
 }));
 
@@ -165,6 +167,7 @@ afterEach(() => {
   bulkStatus = undefined;
   runCaseMutateAsync.mockReset();
   runAllMutateAsync.mockReset();
+  deleteCaseMutate.mockReset();
 });
 
 describe("EvalsTab", () => {

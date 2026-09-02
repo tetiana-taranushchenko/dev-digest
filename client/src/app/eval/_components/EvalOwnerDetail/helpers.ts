@@ -78,5 +78,5 @@ export function deltaPct(fraction: number): number {
 /** `null`/`undefined` cost (no findings run, or a case run pre-dating cost
  *  tracking) renders as an em dash rather than "$NaN"/"$null". */
 export function formatCost(costUsd: number | null | undefined): string {
-  return costUsd == null ? "—" : `$${costUsd.toFixed(2)}`;
+  return costUsd == null ? "—" : `$${costUsd.toFixed(4)}`;
 }

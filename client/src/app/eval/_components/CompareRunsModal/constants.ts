@@ -10,7 +10,7 @@ export const SYSTEM_PROMPT_DIFF_LABEL = "System prompt diff";
 export const NO_SNAPSHOT_MESSAGE = "No matching agent version snapshot found for one of these runs.";
 export const PROMOTING_LABEL = "Promoting…";
 
-export const COMPARE_SUBTITLE = "Old prompt vs new — metric deltas and system-prompt diff for the two selected runs";
+export const COMPARE_SUBTITLE = "Metric deltas and prompt diff on the gold set";
 
 export function compareTitle(oldVersion: number | undefined, newVersion: number | undefined): string {
   if (oldVersion == null || newVersion == null) return "Compare runs";

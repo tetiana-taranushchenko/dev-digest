@@ -4,7 +4,7 @@ import type { Container } from '../../platform/container.js';
 import { parseUnifiedDiff } from '../../adapters/index.js';
 import { ConflictError, NotFoundError, ValidationError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
-import { EVAL_DEFAULT_STRATEGY } from './constants.js';
+import { EVAL_DEFAULT_STRATEGY, EVAL_RUN_TASK } from './constants.js';
 import { EvalOwnerUnavailableError } from './errors.js';
 import {
   EvalRepository,
@@ -170,7 +170,10 @@ export class EvalService {
       // Omitted (not `skills: []`) when the agent has none enabled, matching
       // `run-executor.ts`'s byte-identical-prompt convention.
       ...(skillBodies.length ? { skills: skillBodies } : {}),
-      task: `Evaluate eval case "${caseRow.name}"`,
+      // Deliberately neutral (AC-8/AC-44's "matching is mechanical, no
+      // model-visible hint" guarantee extends to the task line too) — never
+      // interpolate `caseRow.name`/`expected_output` here (see EVAL_RUN_TASK).
+      task: EVAL_RUN_TASK,
       sessionId: `eval:${caseRow.id}`,
     });
     const durationMs = Date.now() - start;

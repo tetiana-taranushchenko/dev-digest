@@ -9,6 +9,7 @@ import { seed } from '../src/db/seed.js';
 import { MockLLMProvider, MockGitClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import type { Finding, Review, StructuredRequest, StructuredResult } from '@devdigest/shared';
+import { EVAL_RUN_TASK } from '../src/modules/eval/constants.js';
 
 /**
  * T7 — eval module integration tests (Testcontainers Postgres, real routes +
@@ -818,6 +819,134 @@ d('eval module (T7)', () => {
     const messages = (call!.req as StructuredRequest<Review>).messages;
     const user = messages[1]!.content;
     expect(user).toContain('<untrusted source="diff">');
+
+    await app.close();
+  });
+
+  // ===========================================================================
+  // Label leakage regression — a seeded case's name (`must-find-<slug>` /
+  // `no-<slug>`, buildSeedCaseName) must never reach the model. Before this
+  // fix, `runCase` sent `task: Evaluate eval case "${caseRow.name}"`, which
+  // told the model exactly whether to find something or not — making
+  // recall/precision measure prompt-reading, not review quality.
+  // ===========================================================================
+
+  it('never leaks the case name, its must-find-/no- prefix, or expected_output into the LLM prompt — identical prompt for a positive vs. negative case (label leakage regression)', async () => {
+    const llm = new MockLLMProvider('openai', { structured: reviewFixture([MATCHED_FINDING]) });
+    const app = await appWithProvider(llm);
+    const agent = await createAgent(app);
+
+    const positiveExpected = [
+      {
+        file: 'src/config.ts',
+        start_line: 11,
+        end_line: 11,
+        title: 'Server-Side Request Forgery',
+        severity: 'CRITICAL',
+        category: 'security',
+      },
+    ];
+    const positive = (
+      await app.inject({
+        method: 'POST',
+        url: '/eval-cases',
+        payload: {
+          owner_kind: 'agent',
+          owner_id: agent.id,
+          name: 'must-find-server-side-request-forgery',
+          input_diff: DIFF,
+          expected_output: positiveExpected,
+        },
+      })
+    ).json();
+    const negative = (
+      await app.inject({
+        method: 'POST',
+        url: '/eval-cases',
+        payload: {
+          owner_kind: 'agent',
+          owner_id: agent.id,
+          name: 'no-server-side-request-forgery',
+          input_diff: DIFF,
+          expected_output: [],
+        },
+      })
+    ).json();
+
+    const lastReviewCall = () =>
+      llm.calls
+        .filter((c) => c.method === 'completeStructured' && (c.req as { schemaName?: string }).schemaName === 'Review')
+        .at(-1)!.req as StructuredRequest<Review>;
+
+    await app.inject({ method: 'POST', url: `/eval-cases/${positive.id}/run` });
+    const positiveMessages = lastReviewCall().messages;
+
+    await app.inject({ method: 'POST', url: `/eval-cases/${negative.id}/run` });
+    const negativeMessages = lastReviewCall().messages;
+
+    // Neither prompt may contain the case's own name, its must-find-/no-
+    // prefix, the serialized expected_output, or the expected finding's
+    // title (it names the vulnerability class but never appears in DIFF's
+    // raw text — a real leak vector distinct from the case name itself).
+    const forbidden = [
+      'must-find-server-side-request-forgery',
+      'no-server-side-request-forgery',
+      JSON.stringify(positiveExpected),
+      'Server-Side Request Forgery',
+    ];
+    for (const messages of [positiveMessages, negativeMessages]) {
+      const fullText = messages.map((m) => m.content).join('\n');
+      for (const needle of forbidden) {
+        expect(fullText).not.toContain(needle);
+      }
+    }
+
+    // Same agent config + same diff → byte-identical prompt content whether
+    // the run came from the positive or the negative case. `sessionId`
+    // (`eval:${caseRow.id}`) differs per case but never enters `messages`.
+    expect(positiveMessages.map((m) => m.content)).toEqual(negativeMessages.map((m) => m.content));
+
+    const userText = positiveMessages[1]!.content;
+    expect(userText).toContain(EVAL_RUN_TASK);
+    expect(userText).toContain('<untrusted source="diff">');
+
+    await app.close();
+  });
+
+  it('sends the exact neutral EVAL_RUN_TASK line, not an interpolated case name (regression guard against reintroducing caseRow.name into task)', async () => {
+    const llm = new MockLLMProvider('openai', { structured: reviewFixture([MATCHED_FINDING]) });
+    const app = await appWithProvider(llm);
+    const agent = await createAgent(app);
+    const created = (
+      await app.inject({
+        method: 'POST',
+        url: '/eval-cases',
+        payload: {
+          owner_kind: 'agent',
+          owner_id: agent.id,
+          name: 'must-find-a-very-specific-leak-marker-xyz',
+          input_diff: DIFF,
+          expected_output: [{ file: 'src/config.ts', start_line: 11, end_line: 11 }],
+        },
+      })
+    ).json();
+
+    await app.inject({ method: 'POST', url: `/eval-cases/${created.id}/run` });
+
+    const call = llm.calls.find(
+      (c) => c.method === 'completeStructured' && (c.req as { schemaName?: string }).schemaName === 'Review',
+    );
+    const userText = (call!.req as StructuredRequest<Review>).messages[1]!.content;
+
+    // No linked skills / PR description / intent here, so `task` is always
+    // the first joined section (`prompt.ts`'s `addUserSection` order) —
+    // pins the task line to the exact constant, not merely "doesn't contain
+    // the name", so a future `task: \`...${caseRow.name}\`` edit fails this
+    // even if the interpolated name happens to dodge the substring checks
+    // above.
+    const taskLine = userText.split('\n\n')[0];
+    expect(taskLine).toBe(EVAL_RUN_TASK);
+    expect(userText).not.toContain('a-very-specific-leak-marker-xyz');
 
     await app.close();
   });

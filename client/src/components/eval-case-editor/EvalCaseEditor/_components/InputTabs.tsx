@@ -56,12 +56,12 @@ export function InputTabs({
           <Textarea
             value={diff}
             onChange={onDiffChange}
-            rows={14}
+            rows={10}
             mono
             placeholder={t("caseEditor.diffPlaceholder")}
           />
         )}
-        {activeTab === "files" && <Textarea value={filesText} onChange={onFilesChange} rows={14} mono />}
+        {activeTab === "files" && <Textarea value={filesText} onChange={onFilesChange} rows={10} mono />}
         {activeTab === "prMeta" && (
           <div style={s.metaWrap}>
             <FormField label={t("caseEditor.titleLabel")}>

@@ -25,3 +25,13 @@ export const EVAL_SEED_DEFAULT_TITLE = 'finding';
  *  static literal (`onion-architecture` skill — cross-module coordination
  *  goes through `container.*`, not module-internal imports). */
 export const EVAL_DEFAULT_STRATEGY = 'single-pass' as const;
+
+/**
+ * Neutral task line sent to the model for every eval run (`service.ts`'s
+ * `runCase`). MUST NOT reference the case name, id, or anything derived from
+ * `expected_output` — a seeded case's name is `must-find-<slug>` (positive)
+ * or `no-<slug>` (negative) (`buildSeedCaseName`), which would otherwise leak
+ * the expected verdict straight into the prompt and make recall/precision
+ * trivially gameable rather than a real measurement of the agent's review.
+ */
+export const EVAL_RUN_TASK = 'Review the provided diff for actionable findings.';

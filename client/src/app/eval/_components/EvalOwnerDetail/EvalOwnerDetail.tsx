@@ -67,7 +67,17 @@ export function EvalOwnerDetail({ ownerKind, ownerId, onBack }: EvalOwnerDetailP
   const displayName = owner.orphaned ? OWNER_DELETED_LABEL : (owner.name ?? "");
 
   return (
-    <AppShell crumb={[{ label: t("page.crumbSkillsLab") }, { label: t("page.crumbEvalDashboard") }, { label: displayName }]}>
+    <AppShell
+      crumb={[
+        { label: t("page.crumbSkillsLab") },
+        // No dedicated `/eval/:ownerId` route — this page swaps overview vs.
+        // detail via `onBack`'s local state (`page.tsx`), so the crumb goes
+        // back through that callback rather than an `href` (a same-URL
+        // `<Link>` click wouldn't reset that state — see EvalPage).
+        { label: t("page.crumbEvalDashboard"), onClick: onBack },
+        { label: displayName },
+      ]}
+    >
       <div style={s.page}>
         <button type="button" onClick={onBack} style={s.back}>
           <Icon.ChevronLeft size={16} />

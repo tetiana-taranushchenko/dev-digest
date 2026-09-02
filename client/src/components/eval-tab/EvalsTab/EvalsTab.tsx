@@ -1,15 +1,31 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Button, EmptyState, PercentProgress, Skeleton } from "@devdigest/ui";
 import type { Agent, EvalCaseInput, EvalOwnerKind, Skill } from "@devdigest/shared";
-import { useBulkRunStatus, useEvalCases, useEvalDashboard, useRunAllEvals, useRunEvalCase } from "../../../lib/hooks/eval";
+import {
+  useBulkRunStatus,
+  useDeleteEvalCase,
+  useEvalCases,
+  useEvalDashboard,
+  useRunAllEvals,
+  useRunEvalCase,
+} from "../../../lib/hooks/eval";
 import { EvalCaseEditor } from "../../eval-case-editor/EvalCaseEditor";
 import { MetricStrip } from "./_components/MetricStrip";
 import { CaseRow } from "./_components/CaseRow";
 import { computePassCounts, isOrphanOwner, latestRunForCase, newCaseSeed } from "./helpers";
-import { LINK_AGENT_HINT, OWNER_DELETED_LABEL, RUN_ALL_LABEL, passCountLabel } from "./constants";
+import {
+  LINK_AGENT_HINT,
+  METRICS_HEADING,
+  OWNER_DELETED_LABEL,
+  RUN_ALL_LABEL,
+  SCORING_EXPLAINER,
+  VIEW_FULL_DASHBOARD_LABEL,
+  passCountLabel,
+} from "./constants";
 import { s } from "./styles";
 
 export interface EvalsTabProps {
@@ -53,6 +69,7 @@ export function EvalsTab({ ownerKind, ownerId, ownerName, agents, skills, canRun
 
   const runCase = useRunEvalCase();
   const runAll = useRunAllEvals();
+  const deleteCase = useDeleteEvalCase();
   const { data: batch } = useBulkRunStatus(batchId);
 
   // Self-clears once the batch reaches "done" — `useBulkRunStatus` stops
@@ -88,7 +105,18 @@ export function EvalsTab({ ownerKind, ownerId, ownerName, agents, skills, canRun
 
   return (
     <div style={s.wrap} aria-label={`${ownerName} evals`}>
-      {dashboard && <MetricStrip dashboard={dashboard} />}
+      {dashboard && (
+        <div style={s.metricsBlock}>
+          <div style={s.metricsHeaderRow}>
+            <span style={s.metricsHeading}>{METRICS_HEADING}</span>
+            <Link href="/eval" style={s.dashboardLink}>
+              {VIEW_FULL_DASHBOARD_LABEL} →
+            </Link>
+          </div>
+          <MetricStrip dashboard={dashboard} />
+          <span style={s.scoringExplainer}>{SCORING_EXPLAINER}</span>
+        </div>
+      )}
 
       {!canRun && (
         <div role="status" style={s.hint}>
@@ -110,6 +138,7 @@ export function EvalsTab({ ownerKind, ownerId, ownerName, agents, skills, canRun
           <Button
             kind="secondary"
             icon="RefreshCw"
+            loading={bulkRunning}
             onClick={runAllCases}
             disabled={runsDisabled || casesList.length === 0}
           >
@@ -146,6 +175,7 @@ export function EvalsTab({ ownerKind, ownerId, ownerName, agents, skills, canRun
               runDisabled={runsDisabled}
               onRun={() => runOne(evalCase.id)}
               onEdit={() => setEditing({ caseId: evalCase.id })}
+              onDelete={() => deleteCase.mutate(evalCase.id)}
             />
           ))}
         </div>
