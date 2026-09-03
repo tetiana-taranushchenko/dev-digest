@@ -14,11 +14,6 @@
       "precision": "PRECISION",
       "citationAccuracy": "CITATION ACCURACY"
     },
-    "legend": {
-      "recall": "Recall",
-      "precision": "Precision",
-      "citation": "Citation"
-    },
     "table": {
       "ranAt": "Ran at",
       "recall": "Recall",
@@ -37,11 +32,13 @@
     "running": "Running…",
     "save": "Save",
     "saving": "Saving…",
+    "saved": "Saved",
     "nameLabel": "Name",
     "namePlaceholder": "stripe-key-leak",
     "inputLabel": "Input",
     "tabs": {
       "diff": "Diff",
+      "files": "Files",
       "prMeta": "PR meta"
     },
     "diffPlaceholder": "--- a/src/config.ts\n+++ b/src/config.ts\n@@ -10,6 +10,7 @@\n+  stripeKey: \"sk_live_...\"",
@@ -53,9 +50,28 @@
     "expectedOutput": "Expected output",
     "validJson": "valid JSON",
     "invalidJson": "invalid JSON",
+    "actualOutput": "Actual output",
+    "neverRunYet": "Never run yet",
     "lastRunPassed": "Last run passed",
     "lastRunFailed": "Last run failed",
-    "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s"
+    "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s",
+    "runOnSave": "Run on save",
+    "ownerRequired": "Choose an owner before saving.",
+    "owner": {
+      "label": "Owner",
+      "kindAgent": "Agent",
+      "kindSkill": "Skill",
+      "selectPlaceholder": "Select an owner…"
+    },
+    "caseKind": {
+      "positiveLabel": "POSITIVE CASE",
+      "negativeLabel": "NEGATIVE CASE",
+      "mustFindTitledAt": "MUST find \"{title}\" at {file}:{line}",
+      "mustFindTitled": "MUST find \"{title}\"",
+      "mustFindAt": "MUST find at {file}:{line}",
+      "mustFindGeneric": "MUST find the expected finding below",
+      "mustNotFlag": "MUST NOT flag"
+    }
   },
   "evalsTab": {
     "metricsTitle": "Eval metrics",
@@ -71,7 +87,9 @@
     "run": "Run",
     "running": "Running…",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "deleteTitle": "Delete eval case?",
+    "deleteConfirm": "Delete eval case \"{name}\"? This cannot be undone."
   },
   "page": {
     "crumbSkillsLab": "Skills Lab",

@@ -1,0 +1,19 @@
+{
+  "eval_id": 2,
+  "eval_name": "notifications-graduated-layering",
+  "prompt": "Drafted a small notifications module (routes.ts, service.ts, repository.ts, attached) — users get a notification row, can list them, mark one read, and there's a small unread-count badge for the topbar. Can you check this over before I register it in modules/index.ts?",
+  "assertions": [
+    {
+      "name": "flags-empty-passthrough-service",
+      "text": "The review flags service.ts as an empty pass-through that adds no logic, unnecessary for a module this simple."
+    },
+    {
+      "name": "flags-business-invariant-in-refine",
+      "text": "The review flags the async .refine() in routes.ts (checking the user exists) as a business invariant that belongs in the service layer, not in Zod shape validation."
+    },
+    {
+      "name": "flags-routes-importing-db-directly",
+      "text": "The review flags the unread-count handler in routes.ts for importing db/schema directly and querying the table itself instead of going through repository.ts."
+    }
+  ]
+}

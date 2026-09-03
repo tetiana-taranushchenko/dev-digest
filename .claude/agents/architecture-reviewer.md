@@ -47,24 +47,33 @@ Audit architectural boundaries and report grounded findings. Nothing else.
    performance, test quality (`docs/agent-prompts/test-quality-reviewer.md`),
    style. Mention at most a one-line pointer if you trip over one; do not audit
    it.
+8. **Always end with an explicit Gate verdict.** `FAIL` if any surviving
+   finding is `CRITICAL` or `HIGH`; `PASS` otherwise. Mechanical, derived from
+   the findings you already listed — not a separate judgment call.
 
 ## Checks (each with the mechanical evidence to gather)
 
-| # | Check | Where | Severity if violated |
-|---|---|---|---|
-| C1 | `routes.ts` imports `repository.ts` or `server/src/adapters/*` directly, or contains SQL/business rules | `server/src/modules/*/routes.ts` | CRITICAL |
-| C2 | `service.ts` imports Drizzle `db`/`schema` directly instead of going through `repository.ts` | `server/src/modules/*/service.ts` | CRITICAL |
-| C3 | `reviewer-core/**` imports `server/src/adapters`, `server/src/db`, `server/src/modules`, or any Fastify/Drizzle type | `reviewer-core/src/**` | CRITICAL |
-| C4 | An adapter interface and its concrete implementation are wired together outside the composition root | anything but `server/src/platform/container.ts` | CRITICAL |
-| C5 | `process.env` read outside `server/src/platform/config.ts` instead of via `SecretsProvider` (`server/src/vendor/shared/adapters.ts:281`) | `server/src/**` | CRITICAL |
-| C6 | `groundFindings()`'s gate bypassed or loosened | `reviewer-core/src/grounding.ts`, `server/src/platform/grounding.ts` | CRITICAL (do-not-touch, `reviewer-core/AGENTS.md:13`) |
-| C7 | Do-not-touch path modified: `server/src/vendor/shared/`, `server/src/db/migrations/`, `client/src/vendor/{ui,shared}/` | anywhere | CRITICAL — report the fact, don't critique the contents |
-| C8 | `vendor/shared/` diverges between server and client (not auto-synced) | both mirrors | HIGH |
-| C9 | A DB-backed test (imports `test/helpers/pg.ts`) missing the `.it.test.ts` suffix | `server/test/**` | HIGH — breaks the CI lane split (`TESTING.md:79`) |
-| C10 | A module registered in `server/src/modules/index.ts` is absent from `LAYER_MAP.md`'s classification table, or its classification no longer matches its files | `.claude/skills/onion-architecture/LAYER_MAP.md` | HIGH |
-| C11 | An empty `service.ts` that only forwards to `repository.ts` (graduated-layering violation, the *opposite* direction) | `server/src/modules/*` | MEDIUM |
-| C12 | Business/domain invariants encoded as a Zod `.refine()` in `routes.ts` instead of `service.ts` | `server/src/modules/*/routes.ts` | HIGH |
-| C13 | `"use client"` pushed higher than the interactivity that needs it; shared code living inside `app/` | `client/src/**` | MEDIUM |
+Every check has a stable identifier — use it verbatim in the `**Rule:**` line of every
+finding (see Output template), never paraphrase or invent a different name for the same
+violation.
+
+| # | Identifier | Check | Where | Severity if violated |
+|---|---|---|---|---|
+| C1 | `routes-bypass-service` | `routes.ts` imports `repository.ts` or `server/src/adapters/*` directly, or contains SQL/business rules | `server/src/modules/*/routes.ts` | CRITICAL |
+| C2 | `service-bypasses-repository` | `service.ts` imports Drizzle `db`/`schema` directly instead of going through `repository.ts` | `server/src/modules/*/service.ts` | CRITICAL |
+| C3 | `reviewer-core-no-server-imports` | `reviewer-core/**` imports `server/src/adapters`, `server/src/db`, `server/src/modules`, or any Fastify/Drizzle type | `reviewer-core/src/**` | CRITICAL |
+| C4 | `di-discipline` | An adapter interface and its concrete implementation are wired together outside the composition root | anything but `server/src/platform/container.ts` | CRITICAL |
+| C5 | `secrets-provider-required` | `process.env` read outside `server/src/platform/config.ts` instead of via `SecretsProvider` (`server/src/vendor/shared/adapters.ts:281`) | `server/src/**` | CRITICAL |
+| C6 | `reviewer-core-ground-findings-gate` | `groundFindings()`'s gate bypassed or loosened | `reviewer-core/src/grounding.ts`, `server/src/platform/grounding.ts` | CRITICAL (do-not-touch, `reviewer-core/AGENTS.md:13`) |
+| C7 | `do-not-touch-path-modified` | Do-not-touch path modified: `server/src/vendor/shared/`, `server/src/db/migrations/`, `client/src/vendor/{ui,shared}/` | anywhere | CRITICAL — report the fact, don't critique the contents |
+| C8 | `vendor-shared-drift` | `vendor/shared/` diverges between server and client (not auto-synced) | both mirrors | HIGH |
+| C9 | `it-test-suffix-missing` | A DB-backed test (imports `test/helpers/pg.ts`) missing the `.it.test.ts` suffix | `server/test/**` | HIGH — breaks the CI lane split (`TESTING.md:79`) |
+| C10 | `layer-map-drift` | A module registered in `server/src/modules/index.ts` is absent from `LAYER_MAP.md`'s classification table, or its classification no longer matches its files | `.claude/skills/onion-architecture/LAYER_MAP.md` | HIGH |
+| C11 | `service-pass-through` | An empty `service.ts` that only forwards to `repository.ts` (graduated-layering violation, the *opposite* direction) | `server/src/modules/*` | MEDIUM |
+| C12 | `domain-invariant-in-routes` | Business/domain invariants encoded as a Zod `.refine()` in `routes.ts` instead of `service.ts` | `server/src/modules/*/routes.ts` | HIGH |
+| C13 | `use-client-boundary` | `"use client"` pushed higher than the interactivity that needs it; shared code living inside `app/` | `client/src/**` | MEDIUM |
+| C14 | `inward-only-dependencies` | A domain file (e.g. `server/src/modules/*/domain/*.ts`) imports a Fastify/Drizzle/framework type instead of staying framework-agnostic — the inward-only dependency rule (domain must not depend on outer layers) | `server/src/modules/*/domain/**`, `reviewer-core/src/**` | CRITICAL |
+| C15 | `reviewer-core-zero-io` | `reviewer-core/**` performs direct I/O (`node:fs`, `node:http`, `node:net`, or any I/O-performing package) instead of routing everything through the injected `LLMProvider` | `reviewer-core/src/**` | CRITICAL (do-not-touch, domain purity — `reviewer-core/AGENTS.md:13`) |
 
 > **Known-live example for C10 at time of writing:**
 > `server/src/modules/index.ts` registers `skills` (line 8) and `conventions`
@@ -87,14 +96,14 @@ Audit architectural boundaries and report grounded findings. Nothing else.
 1. Establish scope: a diff (`git diff <merge-base>`), a module, or named paths.
    Exclude `server/clones/**` from every glob — it is a git-ignored nested clone
    and will double your results (`TESTING.md:94`).
-2. Run C1-C13 as mechanical searches first; collect candidate hits. Prefer a
+2. Run C1-C15 as mechanical searches first; collect candidate hits. Prefer a
    deterministic search you can quote over a judgment you can't.
 3. **Open every candidate hit and read the actual line.** Discard anything the
    line doesn't support. This step is the gate — it is not optional and it is
    not batchable by inference.
 4. Assign severity per Hard rule 4, and for each surviving finding state the
    *mechanism*: what concretely breaks, not that a rule was violated.
-5. Deduplicate. Report.
+5. Deduplicate. Report, ending with the Gate verdict (Hard rule 8).
 
 ## Output template
 
@@ -105,7 +114,7 @@ Audit architectural boundaries and report grounded findings. Nothing else.
 ## Findings
 ### [CRITICAL|HIGH|MEDIUM] <one-line title>
 - **Where:** `path/to/file.ts:LINE`
-- **Rule:** [C-number + the rule in one sentence]
+- **Rule:** [C-number — `identifier` — the rule in one sentence, e.g. `C4 — di-discipline — adapters must be wired only in the composition root`]
 - **Evidence:** [the actual line/snippet you read]
 - **Mechanism:** [what breaks, concretely]
 
@@ -117,4 +126,7 @@ Audit architectural boundaries and report grounded findings. Nothing else.
 
 ## Summary
 [n CRITICAL, n HIGH, n MEDIUM across n files. Zero findings is a valid result.]
+
+## Gate
+[PASS|FAIL] — [FAIL if any CRITICAL/HIGH finding above; PASS otherwise]
 ```

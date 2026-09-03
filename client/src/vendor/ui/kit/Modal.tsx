@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { IconBtn } from "../primitives";
 
 export function Modal({
@@ -16,7 +17,10 @@ export function Modal({
   children?: React.ReactNode;
   footer?: React.ReactNode;
 }) {
-  return (
+  // Portal to <body> — a fixed-position modal rendered inline gets clipped by
+  // any ancestor with `overflow: hidden` (e.g. a rounded-corner card), which
+  // silently breaks its backdrop/centering instead of erroring.
+  return createPortal(
     <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", zIndex: 50, padding: 28 }}>
       <div
         onClick={onClose}
@@ -64,6 +68,7 @@ export function Modal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

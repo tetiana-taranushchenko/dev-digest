@@ -40,4 +40,8 @@ export interface Crumb {
   label: string;
   mono?: boolean;
   href?: string;
+  /** Clickable without a distinct route — e.g. a "back to the list" crumb
+   *  on a page that swaps views via local state rather than the URL.
+   *  Ignored when `href` is also set (`href` wins). */
+  onClick?: () => void;
 }

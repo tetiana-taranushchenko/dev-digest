@@ -40,7 +40,19 @@ export function Topbar({ ctx, crumb = [] }: { ctx: ShellContext; crumb?: Crumb[]
               {i > 0 && (
                 <Icon.ChevronRight size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
               )}
-              {c.href ? <Link href={c.href}>{text}</Link> : text}
+              {c.href ? (
+                <Link href={c.href}>{text}</Link>
+              ) : c.onClick ? (
+                <button
+                  type="button"
+                  onClick={c.onClick}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                >
+                  {text}
+                </button>
+              ) : (
+                text
+              )}
             </React.Fragment>
           );
         })}

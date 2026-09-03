@@ -1,0 +1,19 @@
+{
+  "eval_id": 0,
+  "eval_name": "webhooks-service-bypass",
+  "prompt": "I put together a first draft of a new module for receiving GitHub webhook deliveries — modules/webhooks/routes.ts, service.ts, repository.ts, plus a small adapter at adapters/webhooks/hmac-verifier.ts (all attached below). Before I wire it into modules/index.ts and open a PR, can you review it and point out anything that's off?",
+  "assertions": [
+    {
+      "name": "flags-routes-bypassing-service-to-repository",
+      "text": "The review flags that routes.ts imports repository.ts directly and re-implements the delivery-dedupe check, instead of routing that logic through service.ts."
+    },
+    {
+      "name": "flags-service-importing-db-directly",
+      "text": "The review flags that service.ts imports db/schema directly for the workspace lookup instead of adding a typed method to repository.ts."
+    },
+    {
+      "name": "flags-service-wiring-concrete-adapter-directly",
+      "text": "The review flags that service.ts imports and instantiates the concrete HmacWebhookVerifier itself instead of resolving it through platform/container.ts."
+    }
+  ]
+}

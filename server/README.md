@@ -82,6 +82,9 @@ flowchart TB
     settings["settings<br/>/settings · /providers"]
     workspace["workspace<br/>/workspace"]
   end
+  subgraph EvalG["Eval pipeline"]
+    eval["eval<br/>/eval-cases · /eval-cases/:id/run<br/>/eval-cases/run-all(/:batchId)<br/>/eval-dashboard(/overview)<br/>/findings/:id/eval-seed"]
+  end
   HEALTH["/health (liveness) · /health/ready (DB ping → 200/503)"]
 ```
 
@@ -159,6 +162,39 @@ flowchart TD
   GEN --> ROW[("pr_brief row<br/>keyed on prId + agentId + stateKey")]
   JOIN --> ROW
 ```
+
+### `eval` — regression harness for agents/skills
+
+`modules/eval/routes.ts` (`src/modules/eval/routes.ts:16-33`) exposes 11
+routes for the eval-case CRUD, running, dashboarding, and seed-from-finding
+flow, registered as `eval` in `src/modules/index.ts:17,48`:
+
+| Route | Purpose |
+|---|---|
+| `POST /eval-cases` | create a case (`routes.ts:58-63`) |
+| `GET /eval-cases` | list, `?owner_kind=&owner_id=` both optional (`routes.ts:65-71`) |
+| `GET /eval-cases/:id` | read one case (`routes.ts:73-78`) |
+| `PUT /eval-cases/:id` | update a case (`routes.ts:80-89`) |
+| `DELETE /eval-cases/:id` | delete a case; its `eval_runs` rows cascade via the existing FK (`routes.ts:91-96`) |
+| `POST /eval-cases/:id/run` | run one case synchronously and persist + return an `EvalRunResult` (`routes.ts:100-103`) |
+| `POST /eval-cases/run-all` | bulk run — body `{owner_kind?, owner_id?}`; both present runs one owner, both absent runs the whole workspace (`routes.ts:105-112`) |
+| `GET /eval-cases/run-all/:batchId` | poll a bulk run's progress (`routes.ts:114-122`) |
+| `GET /eval-dashboard` | aggregate current/delta/trend/alert, `?owner_kind=&owner_id=` optional — omitted, the response is the workspace-wide aggregate (`routes.ts:126-132`) |
+| `GET /eval-dashboard/overview` | one dashboard per owner that has ≥1 eval case, for the `/eval` cross-owner view (`routes.ts:134-137`) |
+| `POST /findings/:id/eval-seed` | build (not persist) an `EvalCaseInput` from a finding — `input_diff` is the PR diff sliced to the finding's file via `reviewer-core`'s `sliceDiff`, not assembled client-side (`routes.ts:141-144`) |
+
+Scoring is mechanical, with no LLM call in the scorer: a produced finding
+matches an expected one when `file` is identical and the `[start_line,
+end_line]` ranges overlap, and `pass = recall === 1 && precision === 1`
+(`src/modules/eval/scorer.ts:155`). `scorer.ts` (matching, recall/precision/
+citation-accuracy math) and `dashboard.ts` (trend/delta/alert aggregation)
+are pure functions with zero I/O, the same shape discipline as
+`smart-diff/assemble.ts`/`blast/assemble.ts`. A bulk run is fire-and-forget
+like `POST /pulls/:id/review`: the request returns a `batch_id` immediately
+and the client polls `GET /eval-cases/run-all/:batchId`; progress is tracked
+in-process by `run-tracker.ts`'s `Map`, not the `jobs` table used by
+`repos`/`repo-intel`, since `eval_runs` has no `status` column to persist an
+in-flight placeholder against.
 
 ## Environment
 
