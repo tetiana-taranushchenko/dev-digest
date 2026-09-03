@@ -62,6 +62,15 @@
       "kindAgent": "Agent",
       "kindSkill": "Skill",
       "selectPlaceholder": "Select an owner…"
+    },
+    "caseKind": {
+      "positiveLabel": "POSITIVE CASE",
+      "negativeLabel": "NEGATIVE CASE",
+      "mustFindTitledAt": "MUST find \"{title}\" at {file}:{line}",
+      "mustFindTitled": "MUST find \"{title}\"",
+      "mustFindAt": "MUST find at {file}:{line}",
+      "mustFindGeneric": "MUST find the expected finding below",
+      "mustNotFlag": "MUST NOT flag"
     }
   },
   "evalsTab": {

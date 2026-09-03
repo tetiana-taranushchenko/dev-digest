@@ -11,6 +11,11 @@ export const s = {
   // own `gap: 20` already spaces this from the row below, so this field
   // needs none of its own.
   nameField: { marginBottom: 0 } satisfies CSSProperties,
+  // Row layout so `CaseKindCallout` sits to the right of the Name field
+  // (label + input) rather than inline with the label text itself — the
+  // callout runs two lines (badge + description), taller than the label row.
+  nameFieldRow: { display: "flex", gap: 16, alignItems: "flex-start" } satisfies CSSProperties,
+  nameFieldMain: { flex: 1, minWidth: 0 } satisfies CSSProperties,
   nameFieldLabel: {
     display: "flex",
     alignItems: "center",
@@ -20,6 +25,45 @@ export const s = {
     color: "var(--text-secondary)",
   } satisfies CSSProperties,
   requiredMark: { color: "var(--crit)", marginLeft: 4 } satisfies CSSProperties,
+  // Narrow (260, not the label row's full remaining width) and height-capped
+  // via `caseKindCalloutDesc`'s 2-line clamp below — a long finding title
+  // must never let this box outgrow the Name field beside it.
+  caseKindCallout: {
+    flexShrink: 0,
+    width: 260,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 5,
+    padding: "8px 10px",
+    borderRadius: 7,
+    border: "1px solid",
+  } satisfies CSSProperties,
+  // Blue = positive (`must_find`) — same accent vocabulary as `CaseRow`'s
+  // MUST_FIND badge (`eval-tab/EvalsTab/_components/CaseRow.tsx`).
+  caseKindCalloutPositive: {
+    borderColor: "var(--accent-text)",
+    background: "var(--accent-bg)",
+  } satisfies CSSProperties,
+  // Amber = negative (`must_not_flag`) — deliberately not `--ok` green here:
+  // this callout is a heads-up ("you're asserting an absence"), not a
+  // pass/fail signal like `CaseRow`'s state icon.
+  caseKindCalloutNegative: {
+    borderColor: "var(--warn)",
+    background: "var(--warn-bg)",
+  } satisfies CSSProperties,
+  // 2-line clamp with ellipsis — a long finding title (routinely 60+ chars)
+  // must not push this box past the Name input's own height; the full text
+  // is still reachable via the `title` attribute `CaseKindCallout` sets.
+  caseKindCalloutDesc: {
+    fontSize: 12,
+    lineHeight: 1.4,
+    color: "var(--text-secondary)",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+  } satisfies CSSProperties,
   columns: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",

@@ -11,6 +11,7 @@ import { InputTabs } from "./_components/InputTabs";
 import { ExpectedOutputEditor } from "./_components/ExpectedOutputEditor";
 import { ActualOutputViewer } from "./_components/ActualOutputViewer";
 import { RunOnSaveResult } from "./_components/RunOnSaveResult";
+import { CaseKindCallout } from "./_components/CaseKindCallout";
 import {
   buildInputMeta,
   isOwnerMissing,
@@ -34,13 +35,15 @@ export interface EvalCaseEditorProps {
 /**
  * EvalCaseEditor — the shared create/edit modal for eval cases (T9). Opens
  * from "New eval case" (optionally pre-filled with a `seed`) or from a
- * case's edit control (`caseId`). Exposes Name, an Input section with
- * Diff/Files/PR meta views (AC-24), an Expected output JSON editor with
- * inline validity that blocks Save (AC-25), a "Run on save" toggle whose
- * outcome renders inline after a successful save (AC-26), and an owner
- * picker that blocks Save until an owner is chosen when none is resolvable
- * (AC-30). `Save` persists but does not close the editor — the run outcome
- * (or the just-saved state) stays visible until the user closes it.
+ * case's edit control (`caseId`). Exposes Name — with a live positive/
+ * negative `CaseKindCallout` beside it, derived from Expected output so it
+ * never needs its own "case type" field — an Input section with Diff/Files/
+ * PR meta views (AC-24), an Expected output JSON editor with inline validity
+ * that blocks Save (AC-25), a "Run on save" toggle whose outcome renders
+ * inline after a successful save (AC-26), and an owner picker that blocks
+ * Save until an owner is chosen when none is resolvable (AC-30). `Save`
+ * persists but does not close the editor — the run outcome (or the
+ * just-saved state) stays visible until the user closes it.
  */
 export function EvalCaseEditor({ seed, caseId, onClose }: EvalCaseEditorProps) {
   const t = useTranslations("eval");
@@ -118,6 +121,7 @@ export function EvalCaseEditor({ seed, caseId, onClose }: EvalCaseEditorProps) {
       : await createCase.mutateAsync(input);
     setResolvedCaseId(saved.id);
     if (runOnSaveOn) {
+      setLastRun(null);
       const result = await runCase.mutateAsync(saved.id);
       setLastRun(result.result);
     }
@@ -128,6 +132,7 @@ export function EvalCaseEditor({ seed, caseId, onClose }: EvalCaseEditorProps) {
 
   const runNow = async () => {
     if (!resolvedCaseId) return;
+    setLastRun(null);
     const result = await runCase.mutateAsync(resolvedCaseId);
     setLastRun(result.result);
   };
@@ -172,11 +177,16 @@ export function EvalCaseEditor({ seed, caseId, onClose }: EvalCaseEditorProps) {
     >
       <div style={s.body}>
         <div style={s.nameField}>
-          <div style={s.nameFieldLabel}>
-            {t("caseEditor.nameLabel")}
-            <span style={s.requiredMark}>*</span>
+          <div style={s.nameFieldRow}>
+            <div style={s.nameFieldMain}>
+              <div style={s.nameFieldLabel}>
+                {t("caseEditor.nameLabel")}
+                <span style={s.requiredMark}>*</span>
+              </div>
+              <TextInput value={name} onChange={setName} placeholder={t("caseEditor.namePlaceholder")} />
+            </div>
+            <CaseKindCallout expectedOutputText={expectedOutputText} />
           </div>
-          <TextInput value={name} onChange={setName} placeholder={t("caseEditor.namePlaceholder")} />
         </div>
 
         {ownerMissing && (

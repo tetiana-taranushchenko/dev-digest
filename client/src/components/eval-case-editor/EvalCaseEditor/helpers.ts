@@ -74,3 +74,43 @@ export function isOwnerMissing(ownerId: string): boolean {
 export function computeRunPassed(result: { recall: number; precision: number }): boolean {
   return result.recall === 1 && result.precision === 1;
 }
+
+export type EvalCaseKind = "must_find" | "must_not_flag";
+
+export interface EvalCaseKindInfo {
+  kind: EvalCaseKind;
+  title: string | null;
+  file: string | null;
+  line: number | null;
+}
+
+/**
+ * Live-derives positive (`must_find`) vs negative (`must_not_flag`) straight
+ * from the editor's own `expectedOutputText` textarea state — same rule the
+ * server seeds by (`buildExpectedOutputFromFinding`) and `EvalsTab`'s
+ * `caseKindOf` re-derives for a saved `EvalCase` (`../../eval-tab/EvalsTab/
+ * helpers.ts`): expected_output empty ⇒ negative, non-empty ⇒ positive.
+ * Reads the *unsaved* text (not `expected_output` on a loaded case) so the
+ * badge updates as the user edits Expected output, before Save. Invalid JSON
+ * falls back to `must_not_flag` (an empty/unparsable expectation asserts
+ * nothing to find), matching `isValidJson`'s own parse-and-catch shape.
+ */
+export function evalCaseKindFromExpectedOutput(expectedOutputText: string): EvalCaseKindInfo {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(expectedOutputText);
+  } catch {
+    parsed = [];
+  }
+  const list = Array.isArray(parsed) ? parsed : [];
+  if (list.length === 0) {
+    return { kind: "must_not_flag", title: null, file: null, line: null };
+  }
+  const first = (list[0] ?? {}) as Record<string, unknown>;
+  return {
+    kind: "must_find",
+    title: typeof first.title === "string" ? first.title : null,
+    file: typeof first.file === "string" ? first.file : null,
+    line: typeof first.start_line === "number" ? first.start_line : null,
+  };
+}
